@@ -344,15 +344,28 @@ export default function GuitarQuest({ user }: Props) {
 
                   {/* Chord Diagrams */}
                   {selectedSession.content.chords?.symbols && selectedSession.content.chords.symbols.length > 0 && (
-                    <div className="pt-4 border-t border-slate-100">
-                      <h3 className="text-sm font-bold text-slate-800 mb-4">Các Hợp Âm Cần Học Trong Buổi Này:</h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="pt-4 border-t border-slate-100 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-black text-[#1b2a47] uppercase tracking-wider">Các Hợp Âm Cần Học & Bấm Phím (Chords):</h3>
+                        <span className="text-xs text-amber-600 font-bold bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                          {selectedSession.content.chords.symbols.length} Hợp Âm
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                         {selectedSession.content.chords.symbols.map((chordKey: string) => {
-                          const chordData = CHORD_DATABASE.find(c => c.name === chordKey);
-                          if (!chordData) return null;
+                          const chordData = CHORD_DATABASE.find(c => c.symbol === chordKey || c.name === chordKey);
+                          if (!chordData) {
+                            return (
+                              <div key={chordKey} className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-center flex flex-col items-center justify-center">
+                                <span className="text-2xl font-black text-amber-900 mb-1">{chordKey}</span>
+                                <span className="text-[10px] font-bold text-amber-700">Hợp âm tập luyện</span>
+                              </div>
+                            );
+                          }
                           return (
-                            <div key={chordKey} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center flex flex-col items-center">
-                              <span className="text-lg font-black text-[#1b2a47] mb-2">{chordData.name}</span>
+                            <div key={chordKey} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center flex flex-col items-center shadow-xs hover:border-amber-400 transition-all">
+                              <span className="text-xl font-black text-[#1b2a47] mb-2">{chordData.symbol} ({chordData.name})</span>
                               <div className="w-36 h-36">
                                 <ChordDiagram chord={chordData} />
                               </div>
