@@ -50,8 +50,8 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <svg width={svgW} height={svgH} className="overflow-visible">
+    <div className="flex flex-col items-center gap-2 w-full">
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} width={svgW} height={svgH} className="max-w-[200px] w-full h-auto">
         {/* Nut (thick top bar) */}
         <rect
           x={gridX}

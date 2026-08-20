@@ -364,9 +364,9 @@ export default function GuitarQuest({ user }: Props) {
                             );
                           }
                           return (
-                            <div key={chordKey} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center flex flex-col items-center shadow-xs hover:border-amber-400 transition-all">
-                              <span className="text-xl font-black text-[#1b2a47] mb-2">{chordData.symbol} ({chordData.name})</span>
-                              <div className="w-36 h-36">
+                            <div key={chordKey} className="bg-slate-50 p-4 rounded-3xl border border-slate-200 text-center flex flex-col items-center shadow-xs hover:border-amber-400 transition-all">
+                              <span className="text-base font-black text-[#1b2a47] mb-1">{chordData.symbol} ({chordData.name})</span>
+                              <div className="w-full flex items-center justify-center">
                                 <ChordDiagram chord={chordData} />
                               </div>
                             </div>
