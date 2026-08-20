@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSessionsData, saveSessionsData } from './data/questData';
 import type { Session } from './data/questData';
-import { supabase } from './lib/supabase';
 import { sql, initNeonSchema } from './lib/neon';
 import { 
   Users, 
@@ -27,80 +26,62 @@ interface SubmissionItem {
   feedback?: string;
 }
 
+interface StudentProgressItem {
+  id: string;
+  student_name: string;
+  student_email: string;
+  created_at: string;
+  completed_count: number;
+  completed_sessions: number[];
+  latest_submission?: SubmissionItem;
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'submissions' | 'students' | 'editor'>('submissions');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeEditorId, setActiveEditorId] = useState<number>(1);
   const [toastMsg, setToastMsg] = useState('');
+  const [studentsList, setStudentsList] = useState<StudentProgressItem[]>([]);
 
   // Submissions State
-  const [submissions, setSubmissions] = useState<SubmissionItem[]>([
-    {
-      id: 'sub-1',
-      student_name: 'Nguyễn Văn An',
-      student_email: 'an.nguyen@gmail.com',
-      session_id: 1,
-      video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      created_at: '2026-08-18 10:30',
-      status: 'PENDING'
-    },
-    {
-      id: 'sub-2',
-      student_name: 'Trần Thị Mai',
-      student_email: 'mai.tran@gmail.com',
-      session_id: 2,
-      video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-      created_at: '2026-08-17 15:45',
-      status: 'REVIEWED',
-      grade: 9,
-      feedback: 'Đàn rất ngón tay tròn, chuyển hợp âm Am sang Em chuẩn nhịp. Cần chú ý giữ lưng thẳng hơn một chút nhé!'
-    }
-  ]);
-
-  const [selectedSub, setSelectedSub] = useState<SubmissionItem | null>(submissions[0]);
+  const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
+  const [selectedSub, setSelectedSub] = useState<SubmissionItem | null>(null);
   const [gradeInput, setGradeInput] = useState<number>(9);
   const [feedbackInput, setFeedbackInput] = useState<string>('');
 
   useEffect(() => {
-    const data = getSessionsData();
-    setSessions(data);
+    async function loadAllDatabaseData() {
+      // 1. Initialize Neon DB Schema
+      await initNeonSchema();
 
-    // Initialize Neon Database schema automatically
-    initNeonSchema();
-
-    // Fetch submissions from Neon & Supabase & LocalStorage
-    fetchSupabaseSubmissions();
-  }, []);
-
-  const fetchSupabaseSubmissions = async () => {
-    // 1. Get local submissions from localStorage (from quest.html webcam recorder)
-    const localSubs: SubmissionItem[] = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
-
-    let fetchedFormatted: SubmissionItem[] = [];
-    try {
-      const { data, error } = await supabase
-        .from('submissions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && data && data.length > 0) {
-        fetchedFormatted = data.map((d: any) => ({
-          id: d.id,
-          student_name: d.student_name || 'Học Viên Demo',
-          student_email: d.student_email || 'student@guitarlab.vn',
-          session_id: d.session_id,
-          video_url: d.video_url,
-          created_at: new Date(d.created_at).toLocaleString('vi-VN'),
-          status: d.status || 'PENDING',
-          grade: d.grade,
-          feedback: d.feedback
-        }));
+      // 2. Fetch Sessions from Neon DB
+      try {
+        const dbSessions = await sql`SELECT * FROM sessions ORDER BY id ASC`;
+        if (dbSessions && dbSessions.length > 0) {
+          const mapped: Session[] = getSessionsData().map(localSession => {
+            const dbItem = dbSessions.find((ds: any) => Number(ds.id) === localSession.id);
+            return {
+              ...localSession,
+              title: dbItem?.title || localSession.title,
+              subtitle: dbItem?.subtitle || localSession.subtitle
+            };
+          });
+          setSessions(mapped);
+        } else {
+          setSessions(getSessionsData());
+        }
+      } catch (e) {
+        setSessions(getSessionsData());
       }
-    } catch (err) {
-      console.log('Chưa kết nối bảng submissions thật, sử dụng dữ liệu local.');
+
+      // 3. Fetch Submissions & Students from Neon DB
+      fetchDatabaseSubmissionsAndStudents();
     }
 
-    // Fetch from Neon PostgreSQL Database
+    loadAllDatabaseData();
+  }, []);
+
+  const fetchDatabaseSubmissionsAndStudents = async () => {
     let neonFormatted: SubmissionItem[] = [];
     try {
       const neonRows = await sql`SELECT * FROM submissions ORDER BY created_at DESC`;
@@ -118,12 +99,15 @@ export default function AdminPage() {
         }));
       }
     } catch (neonErr) {
-      console.log('Chưa kết nối bảng Neon DB, bỏ qua.');
+      console.log('Neon DB submissions fetch error:', neonErr);
     }
 
-    // Merge and deduplicate by item.id
+    // Local submissions fallback
+    const localSubs: SubmissionItem[] = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
+
+    // Merge submissions
     const mergedMap = new Map<string, SubmissionItem>();
-    [...localSubs, ...neonFormatted, ...fetchedFormatted, ...submissions].forEach(item => {
+    [...localSubs, ...neonFormatted].forEach(item => {
       if (!mergedMap.has(item.id)) {
         mergedMap.set(item.id, item);
       }
@@ -131,7 +115,60 @@ export default function AdminPage() {
 
     const uniqueList = Array.from(mergedMap.values());
     setSubmissions(uniqueList);
-    if (uniqueList.length > 0) setSelectedSub(uniqueList[0]);
+    if (uniqueList.length > 0 && !selectedSub) setSelectedSub(uniqueList[0]);
+
+    // 4. Fetch Students & Profiles from Neon DB
+    try {
+      const profilesRows = await sql`SELECT * FROM profiles ORDER BY created_at DESC`;
+      const progressRows = await sql`SELECT * FROM student_progress`;
+
+      const progressMap = new Map<string, number[]>();
+      progressRows.forEach((p: any) => {
+        const sId = p.student_id;
+        const sNum = Number(p.session_id);
+        if (p.is_completed) {
+          const list = progressMap.get(sId) || [];
+          list.push(sNum);
+          progressMap.set(sId, list);
+        }
+      });
+
+      if (profilesRows && profilesRows.length > 0) {
+        const studentItems: StudentProgressItem[] = profilesRows.map((prof: any) => {
+          const completedList = progressMap.get(prof.id) || [];
+          const latestSub = uniqueList.find(s => s.student_email === prof.email || s.student_name === prof.full_name);
+          return {
+            id: prof.id,
+            student_name: prof.full_name || 'Học Viên',
+            student_email: prof.email,
+            created_at: new Date(prof.created_at).toLocaleDateString('vi-VN'),
+            completed_count: completedList.length,
+            completed_sessions: completedList,
+            latest_submission: latestSub
+          };
+        });
+        setStudentsList(studentItems);
+      } else {
+        // Build students from submissions if profiles table empty
+        const studentEmailMap = new Map<string, StudentProgressItem>();
+        uniqueList.forEach(sub => {
+          if (!studentEmailMap.has(sub.student_email)) {
+            studentEmailMap.set(sub.student_email, {
+              id: `user_${sub.student_email}`,
+              student_name: sub.student_name,
+              student_email: sub.student_email,
+              created_at: sub.created_at,
+              completed_count: sub.status === 'REVIEWED' ? sub.session_id : sub.session_id - 1,
+              completed_sessions: Array.from({ length: sub.session_id - 1 }, (_, i) => i + 1),
+              latest_submission: sub
+            });
+          }
+        });
+        setStudentsList(Array.from(studentEmailMap.values()));
+      }
+    } catch (err) {
+      console.warn('Neon DB profiles fetch note:', err);
+    }
   };
 
   const showToast = (msg: string) => {
@@ -139,9 +176,22 @@ export default function AdminPage() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  const handleSaveEditor = () => {
+  const handleSaveEditor = async () => {
     saveSessionsData(sessions);
-    showToast('Đã lưu nội dung khóa học thành công!');
+
+    if (activeSession) {
+      try {
+        await sql`
+          UPDATE sessions 
+          SET title = ${activeSession.title},
+              subtitle = ${activeSession.subtitle}
+          WHERE id = ${activeSession.id}
+        `;
+      } catch (e) {
+        console.warn('Neon DB session update note:', e);
+      }
+    }
+    showToast('Đã lưu nội dung khóa học lên CSDL Neon thành công!');
   };
 
   const handleGradeSubmission = async () => {
@@ -468,145 +518,79 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-medium">
-                  
-                  {/* Student 1 */}
-                  <tr className="hover:bg-slate-50/60 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm">
-                          N
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-sm text-[#1b2a47] block">Nguyễn Văn An</span>
-                          <span className="text-[10px] text-slate-400">Tham gia: 10/08/2026</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 text-slate-600 font-mono">an.nguyen@gmail.com</td>
-                    <td className="p-4">
-                      <div className="space-y-1.5 w-36">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-bold text-slate-700">50%</span>
-                          <span className="text-slate-500 font-bold">4/8 Buổi</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="w-1/2 h-full bg-emerald-500 rounded-full"></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center" title="Buổi 1: Đã hoàn thành">B1</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center" title="Buổi 2: Đã hoàn thành">B2</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center" title="Buổi 3: Đã hoàn thành">B3</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center" title="Buổi 4: Đã hoàn thành">B4</span>
-                        <span className="w-6 h-6 rounded-lg bg-amber-400 text-amber-950 font-bold text-[10px] flex items-center justify-center" title="Buổi 5: Đã nộp video (Chờ chấm)">B5</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center" title="Buổi 6: Khóa">B6</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center" title="Buổi 7: Khóa">B7</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center" title="Buổi 8: Khóa">B8</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <button 
-                        onClick={() => setActiveTab('submissions')} 
-                        className="px-3 py-1.5 bg-amber-100 text-amber-800 font-extrabold rounded-xl hover:bg-amber-200 transition-colors inline-flex items-center gap-1"
-                      >
-                        Chấm Buổi 5 <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
+                  {studentsList.length > 0 ? (
+                    studentsList.map((st, idx) => {
+                      const percent = Math.round((st.completed_count / 8) * 100);
+                      const bgColors = ['bg-amber-500', 'bg-indigo-600', 'bg-purple-600', 'bg-emerald-600', 'bg-blue-600'];
+                      const avatarBg = bgColors[idx % bgColors.length];
 
-                  {/* Student 2 */}
-                  <tr className="hover:bg-slate-50/60 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm">
-                          T
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-sm text-[#1b2a47] block">Trần Thị Mai</span>
-                          <span className="text-[10px] text-slate-400">Tham gia: 05/08/2026</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 text-slate-600 font-mono">mai.tran@gmail.com</td>
-                    <td className="p-4">
-                      <div className="space-y-1.5 w-36">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-bold text-slate-700">75%</span>
-                          <span className="text-slate-500 font-bold">6/8 Buổi</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="w-3/4 h-full bg-emerald-500 rounded-full"></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center">B1</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center">B2</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center">B3</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center">B4</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center">B5</span>
-                        <span className="w-6 h-6 rounded-lg bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center">B6</span>
-                        <span className="w-6 h-6 rounded-lg bg-blue-500 text-white font-bold text-[10px] flex items-center justify-center">B7</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B8</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 font-extrabold rounded-xl border border-emerald-200">
-                        Đã Chấm 9/10 đ
-                      </span>
-                    </td>
-                  </tr>
+                      return (
+                        <tr key={st.id || st.student_email} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 ${avatarBg} text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm`}>
+                                {(st.student_name[0] || 'H').toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="font-extrabold text-sm text-[#1b2a47] block">{st.student_name}</span>
+                                <span className="text-[10px] text-slate-400">Tham gia: {st.created_at}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-slate-600 font-mono">{st.student_email}</td>
+                          <td className="p-4">
+                            <div className="space-y-1.5 w-36">
+                              <div className="flex justify-between text-[11px]">
+                                <span className="font-bold text-slate-700">{percent}%</span>
+                                <span className="text-slate-500 font-bold">{st.completed_count}/8 Buổi</span>
+                              </div>
+                              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${percent}%` }}></div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-1.5">
+                              {[1, 2, 3, 4, 5, 6, 7, 8].map(sNum => {
+                                const isDone = st.completed_sessions.includes(sNum);
+                                const isSub = st.latest_submission?.session_id === sNum;
+                                let badgeClass = "bg-slate-200 text-slate-500";
+                                if (isDone) badgeClass = "bg-emerald-500 text-white";
+                                else if (isSub) badgeClass = "bg-amber-400 text-amber-950 font-bold";
 
-                  {/* Student 3 */}
-                  <tr className="hover:bg-slate-50/60 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm">
-                          K
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-sm text-[#1b2a47] block">Khách Xem Trước (Demo)</span>
-                          <span className="text-[10px] text-slate-400">Tham gia: Hôm nay</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 text-slate-600 font-mono">student@guitarlab.vn</td>
-                    <td className="p-4">
-                      <div className="space-y-1.5 w-36">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-bold text-slate-700">12.5%</span>
-                          <span className="text-slate-500 font-bold">1/8 Buổi</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="w-1/8 h-full bg-emerald-500 rounded-full"></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-6 h-6 rounded-lg bg-amber-400 text-amber-950 font-bold text-[10px] flex items-center justify-center" title="Buổi 1: Đã nộp video webcam">B1</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B2</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B3</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B4</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B5</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B6</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B7</span>
-                        <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">B8</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <button 
-                        onClick={() => setActiveTab('submissions')} 
-                        className="px-3 py-1.5 bg-amber-100 text-amber-800 font-extrabold rounded-xl hover:bg-amber-200 transition-colors inline-flex items-center gap-1"
-                      >
-                        Chấm Buổi 1 <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-
+                                return (
+                                  <span key={sNum} className={`w-6 h-6 rounded-lg font-bold text-[10px] flex items-center justify-center ${badgeClass}`}>
+                                    B{sNum}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="p-4 text-right">
+                            {st.latest_submission ? (
+                              <button 
+                                onClick={() => {
+                                  setSelectedSub(st.latest_submission || null);
+                                  setActiveTab('submissions');
+                                }} 
+                                className="px-3 py-1.5 bg-amber-100 text-amber-800 font-extrabold rounded-xl hover:bg-amber-200 transition-colors inline-flex items-center gap-1"
+                              >
+                                Chấm Buổi {st.latest_submission.session_id} <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">Chưa nộp bài</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-400 italic">
+                        Chưa có dữ liệu học viên trong CSDL Neon PostgreSQL
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
