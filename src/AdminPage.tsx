@@ -42,6 +42,7 @@ export default function AdminPage() {
   const [activeEditorId, setActiveEditorId] = useState<number>(1);
   const [toastMsg, setToastMsg] = useState('');
   const [studentsList, setStudentsList] = useState<StudentProgressItem[]>([]);
+  const [selectedStudentProfile, setSelectedStudentProfile] = useState<StudentProgressItem | null>(null);
 
   // Submissions State
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
@@ -518,7 +519,7 @@ export default function AdminPage() {
                     <th className="p-4">Email Liên Hệ</th>
                     <th className="p-4">Tiến Độ Tổng Quan</th>
                     <th className="p-4">Ma Trận 8 Buổi Học</th>
-                    <th className="p-4 text-right">Bài Nộp Mới Nhất</th>
+                    <th className="p-4 text-right">Chi Tiết Hồ Sơ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-medium">
@@ -529,7 +530,11 @@ export default function AdminPage() {
                       const avatarBg = bgColors[idx % bgColors.length];
 
                       return (
-                        <tr key={st.id || st.student_email} className="hover:bg-slate-50/60 transition-colors">
+                        <tr 
+                          key={st.id || st.student_email} 
+                          onClick={() => setSelectedStudentProfile(st)}
+                          className="hover:bg-amber-50/40 cursor-pointer transition-colors"
+                        >
                           <td className="p-4">
                             <div className="flex items-center gap-3">
                               <div className={`w-9 h-9 ${avatarBg} text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm`}>
@@ -571,19 +576,15 @@ export default function AdminPage() {
                             </div>
                           </td>
                           <td className="p-4 text-right">
-                            {st.latest_submission ? (
-                              <button 
-                                onClick={() => {
-                                  setSelectedSub(st.latest_submission || null);
-                                  setActiveTab('submissions');
-                                }} 
-                                className="px-3 py-1.5 bg-amber-100 text-amber-800 font-extrabold rounded-xl hover:bg-amber-200 transition-colors inline-flex items-center gap-1"
-                              >
-                                Chấm Buổi {st.latest_submission.session_id} <ChevronRight className="w-3.5 h-3.5" />
-                              </button>
-                            ) : (
-                              <span className="text-slate-400 text-xs italic">Chưa nộp bài</span>
-                            )}
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedStudentProfile(st);
+                              }} 
+                              className="px-3.5 py-1.5 bg-[#1b2a47] text-white font-extrabold rounded-xl hover:bg-slate-800 transition-colors inline-flex items-center gap-1 shadow-xs"
+                            >
+                              Hồ Sơ & Bài Nộp ➔
+                            </button>
                           </td>
                         </tr>
                       );
@@ -946,6 +947,184 @@ export default function AdminPage() {
             )}
           </div>
         )}
+
+      {/* ═════════════════════════════════════════════════════════════════
+          TRANG THÔNG TIN CHI TIẾT HỌC VIÊN (STUDENT DETAIL PROFILE MODAL)
+         ═════════════════════════════════════════════════════════════════ */}
+      {selectedStudentProfile && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 max-h-[92vh] overflow-y-auto shadow-2xl relative border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedStudentProfile(null)}
+              className="absolute top-6 right-6 w-9 h-9 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full flex items-center justify-center font-bold text-lg transition-all"
+            >
+              ✕
+            </button>
+
+            {/* Student Banner */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gradient-to-tr from-amber-500 to-amber-600 text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-md">
+                  {(selectedStudentProfile.student_name[0] || 'H').toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="font-black text-2xl text-[#1b2a47] flex items-center gap-2">
+                    {selectedStudentProfile.student_name}
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                      Học Viên Guitar
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-500 font-mono mt-1">📧 Email: {selectedStudentProfile.student_email}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">📅 Ngày tham gia: {selectedStudentProfile.created_at}</p>
+                </div>
+              </div>
+
+              {/* Progress Badge */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-right min-w-[200px]">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Tiến Độ Khóa Học:</span>
+                <span className="text-2xl font-black text-emerald-600">
+                  {selectedStudentProfile.completed_count}/8 Buổi ({Math.round((selectedStudentProfile.completed_count / 8) * 100)}%)
+                </span>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mt-2">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${Math.round((selectedStudentProfile.completed_count / 8) * 100)}%` }}></div>
+                </div>
+              </div>
+            </div>
+
+            {/* 1. Ma Trận 8 Buổi Học */}
+            <div className="space-y-3">
+              <h3 className="font-black text-sm text-[#1b2a47] uppercase tracking-wider">
+                1. Trạng Thái Chi Tiết Tiến Độ 8 Buổi Học:
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(sNum => {
+                  const isDone = selectedStudentProfile.completed_sessions.includes(sNum);
+                  const sessInfo = sessions.find(s => s.id === sNum);
+                  return (
+                    <div 
+                      key={sNum} 
+                      className={`p-3.5 rounded-2xl border text-center transition-all ${
+                        isDone 
+                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950' 
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-xs">Buổi {sNum}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                          {isDone ? 'Hoàn thành ✓' : 'Chưa học'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-bold block truncate">{sessInfo?.title || `Bài học ${sNum}`}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Danh Sách Bài Nộp Video Guitar Thực Hành */}
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-sm text-[#1b2a47] uppercase tracking-wider">
+                  2. Các Bài Nộp Video Guitar Thực Hành ({
+                    submissions.filter(s => 
+                      s.student_email === selectedStudentProfile.student_email || 
+                      s.student_name === selectedStudentProfile.student_name
+                    ).length
+                  } Bài Nộp):
+                </h3>
+              </div>
+
+              {(() => {
+                const studentSubs = submissions.filter(s => 
+                  s.student_email === selectedStudentProfile.student_email || 
+                  s.student_name === selectedStudentProfile.student_name
+                );
+
+                if (studentSubs.length === 0) {
+                  return (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 italic text-xs">
+                      Học viên này chưa nộp bài thực hành video nào.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {studentSubs.map(sub => {
+                      const sess = sessions.find(s => s.id === sub.session_id);
+                      return (
+                        <div key={sub.id} className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                            <div>
+                              <h4 className="font-black text-sm text-[#1b2a47]">
+                                🎬 Bài Nộp Buổi {sub.session_id}: {sess?.title || `Buổi học ${sub.session_id}`}
+                              </h4>
+                              <span className="text-[11px] text-slate-400">Thời gian nộp: {sub.created_at}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-extrabold px-3 py-1 rounded-full ${
+                                sub.status === 'REVIEWED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
+                              }`}>
+                                {sub.status === 'REVIEWED' ? 'Đã Chấm Điểm ✓' : 'Chờ Nhận Xét'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setSelectedStudentProfile(null);
+                                  setSelectedSub(sub);
+                                  setActiveTab('submissions');
+                                }}
+                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs"
+                              >
+                                Chấm Bài Này ➔
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Video Player */}
+                          {sub.video_url && (
+                            <div className="aspect-video w-full max-w-lg mx-auto rounded-2xl overflow-hidden shadow-md bg-black">
+                              {sub.video_url.includes('youtube.com') || sub.video_url.includes('youtu.be') ? (
+                                <iframe
+                                  src={`https://www.youtube.com/embed/${sub.video_url.split('v=')[1] || sub.video_url.split('youtu.be/')[1]}`}
+                                  className="w-full h-full border-0"
+                                  allowFullScreen
+                                ></iframe>
+                              ) : (
+                                <video
+                                  src={sub.video_url}
+                                  controls
+                                  className="w-full h-full object-contain"
+                                />
+                              )}
+                            </div>
+                          )}
+
+                          {/* Grade & Feedback if reviewed */}
+                          {sub.status === 'REVIEWED' && (
+                            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-black text-xs text-emerald-900">Điểm Đánh Giá: {sub.grade}/10 điểm</span>
+                                <span className="text-[10px] font-bold text-emerald-700">Đã gửi nhận xét cho học viên</span>
+                              </div>
+                              {sub.feedback && (
+                                <p className="text-xs text-emerald-800 italic">"{sub.feedback}"</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+          </div>
+        </div>
+      )}
 
       </main>
 
