@@ -696,6 +696,10 @@ export default function GuitarQuest({ user }: Props) {
                     }
                   }
 
+                  const subDateDisplay = sub.created_at
+                    ? (sub.created_at instanceof Date ? sub.created_at.toLocaleString('vi-VN') : String(sub.created_at))
+                    : 'Mới nộp';
+
                   return (
                     <div key={sub.id || Math.random()} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
                       
@@ -710,7 +714,7 @@ export default function GuitarQuest({ user }: Props) {
                               {sessInfo?.title || `Buổi học ${sub.session_id || 1}`}
                             </h3>
                           </div>
-                          <p className="text-xs text-slate-400 mt-1 font-mono">📅 Ngày nộp bài: {sub.created_at || 'Mới nộp'}</p>
+                          <p className="text-xs text-slate-400 mt-1 font-mono">📅 Ngày nộp bài: {subDateDisplay}</p>
                         </div>
 
                         <div className="flex items-center gap-3">

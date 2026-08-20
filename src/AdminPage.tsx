@@ -101,7 +101,7 @@ export default function AdminPage() {
           student_email: d.student_email || 'student@guitarlab.vn',
           session_id: Number(d.session_id),
           video_url: d.video_url,
-          created_at: new Date(d.created_at).toLocaleString('vi-VN'),
+          created_at: d.created_at ? (d.created_at instanceof Date ? d.created_at.toLocaleString('vi-VN') : new Date(d.created_at).toLocaleString('vi-VN')) : 'Mới nộp',
           status: d.status || 'PENDING',
           grade: d.grade,
           feedback: d.feedback

@@ -1,4 +1,7 @@
-import { neon } from '@neondatabase/serverless';
+import { neon, neonConfig } from '@neondatabase/serverless';
+
+// Suppress Neon SQL in browser warning
+neonConfig.disableWarningInBrowsers = true;
 
 const databaseUrl = 
   import.meta.env.VITE_DATABASE_URL || 
