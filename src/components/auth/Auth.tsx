@@ -32,21 +32,20 @@ export const Auth: React.FC = () => {
     setRotate({ x: 0, y: 0 });
   };
 
-  if (!isSupabaseConfigured()) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-900 text-white p-4 text-center">
-        <div className="max-w-md p-8 bg-red-500/10 rounded-2xl border border-red-500/30">
-          <h2 className="text-2xl font-bold mb-4 text-red-400">Thiếu Cấu Hình</h2>
-          <p className="text-white/70">Vui lòng cung cấp cấu hình Supabase trong file .env.local</p>
-        </div>
-      </div>
-    );
-  }
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // If Supabase is not configured, automatically fallback to local session
+    if (!isSupabaseConfigured()) {
+      localStorage.setItem('skip_auth', 'true');
+      if (fullName) {
+        localStorage.setItem('temp_user_name', fullName);
+      }
+      window.location.reload();
+      return;
+    }
 
     try {
       if (isLogin) {
