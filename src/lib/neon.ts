@@ -85,6 +85,11 @@ export async function initNeonSchema() {
     const sessionCount = await sql`SELECT COUNT(*) FROM sessions`;
     if (Number(sessionCount[0]?.count || 0) === 0) {
       await sql`
+        INSERT INTO courses (id, title, subtitle, description, total_sessions)
+        VALUES ('guitar-8-buoi', 'Khoá Học Guitar Đệm Hát 8 Buổi', 'Lộ trình chuẩn hóa từ Zero đến đệm hát thuần thục bài hát yêu thích', 'Dành riêng cho người mới bắt đầu học đàn guitar acoustic', 8)
+        ON CONFLICT (id) DO NOTHING;
+      `;
+      await sql`
         INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, chords, order_index) VALUES
         (1, 'guitar-8-buoi', 'Làm Quen Đàn Guitar & Nhịp Căn Bản', 'Tư thế cầm đàn, gảy 6 dây mở và lắng nghe âm sắc', '🎸', 'dQw4w9WgXcQ', ARRAY['Em', 'Am'], 1),
         (2, 'guitar-8-buoi', 'Hợp Âm Em, Am & Đệm Hát Bài Đầu Tiên', 'Bấm 2 hợp âm huyền thoại và tập chuyển nhịp 4/4', '🎵', 'dQw4w9WgXcQ', ARRAY['Em', 'Am', 'C'], 2),
