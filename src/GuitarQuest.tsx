@@ -38,16 +38,45 @@ export default function GuitarQuest({ user }: Props) {
   const [mySubmissions, setMySubmissions] = useState<any[]>([]);
   const [mainTab, setMainTab] = useState<'roadmap' | 'portfolio'>('roadmap');
 
+  const [availableCourses, setAvailableCourses] = useState<any[]>([]);
+  const [activeCourseId, setActiveCourseId] = useState<string>('guitar-8-buoi');
+
   // Fetch Live Data from Neon PostgreSQL Database
   useEffect(() => {
     async function loadNeonData() {
       try {
         await initNeonSchema();
 
-        // 1. Fetch sessions from Neon DB
-        const dbSessions = await sql`SELECT * FROM sessions ORDER BY id ASC`;
+        // 1. Fetch courses & student enrollments from Neon DB
+        let enrolledCoursesList: any[] = [];
+        try {
+          const dbCourses = await sql`SELECT * FROM courses ORDER BY created_at ASC`;
+          const enrolledRows = await sql`
+            SELECT course_id FROM user_courses 
+            WHERE LOWER(student_email) = ${studentEmail.toLowerCase()}
+          `;
+
+          const enrolledCourseIds = new Set((enrolledRows || []).map((r: any) => r.course_id));
+          enrolledCourseIds.add('guitar-8-buoi');
+
+          enrolledCoursesList = (dbCourses || []).filter((c: any) => enrolledCourseIds.has(c.id));
+          if (enrolledCoursesList.length > 0) {
+            setAvailableCourses(enrolledCoursesList);
+          } else {
+            setAvailableCourses([{ id: 'guitar-8-buoi', title: 'Khoá Học Guitar Đệm Hát 8 Buổi', total_sessions: 8 }]);
+          }
+        } catch (cErr) {
+          console.warn('Neon DB courses fetch note:', cErr);
+        }
+
+        // 2. Fetch sessions for active course from Neon DB
+        const dbSessions = await sql`
+          SELECT * FROM sessions 
+          WHERE course_id = ${activeCourseId} OR course_id IS NULL OR course_id = ''
+          ORDER BY order_index ASC, id ASC
+        `;
         
-        // 2. Fetch student progress from Neon DB strictly for this logged in user
+        // 3. Fetch student progress from Neon DB strictly for this logged in user
         const progressRows = await sql`
           SELECT * FROM student_progress 
           WHERE student_id = ${studentEmail} OR student_id = ${studentId}
@@ -56,32 +85,56 @@ export default function GuitarQuest({ user }: Props) {
         const completedIds = new Set(progressRows.filter((p: any) => p.is_completed).map((p: any) => Number(p.session_id)));
 
         if (dbSessions && dbSessions.length > 0) {
-          const mapped: Session[] = getSessionsData().map(localSession => {
-            const dbItem = dbSessions.find((ds: any) => Number(ds.id) === localSession.id);
-            const isDone = completedIds.has(localSession.id);
+          const mapped: Session[] = dbSessions.map((dbItem: any, idx: number) => {
+            const sessNum = idx + 1;
+            const isDone = completedIds.has(Number(dbItem.id));
 
-            const dbChords = dbItem?.chords && Array.isArray(dbItem.chords) && dbItem.chords.length > 0 ? dbItem.chords : null;
+            const dbChords = dbItem?.chords && Array.isArray(dbItem.chords) && dbItem.chords.length > 0 ? dbItem.chords : ['C', 'G', 'Am', 'Em'];
             const dbExercises = dbItem?.exercises 
               ? (typeof dbItem.exercises === 'string' ? JSON.parse(dbItem.exercises) : dbItem.exercises)
-              : null;
+              : [
+                  { id: 1, text: `Thực hành gảy nhịp cho Buổi ${sessNum}`, done: isDone },
+                  { id: 2, text: `Quay video đoạn đàn thực hành Buổi ${sessNum} gửi thầy`, done: isDone }
+                ];
 
             return {
-              ...localSession,
-              title: dbItem?.title || localSession.title,
-              subtitle: dbItem?.subtitle || localSession.subtitle,
+              id: Number(dbItem.id),
+              title: dbItem.title || `Buổi ${sessNum}: Bài thực hành ${sessNum}`,
+              subtitle: dbItem.subtitle || `Nội dung hướng dẫn chi tiết cho buổi học thứ ${sessNum}`,
+              icon: dbItem.icon || '🎸',
+              xp: 100,
+              color: 'amber',
+              x: 0,
+              y: 0,
               completed: isDone,
-              unlocked: isDone || localSession.id === 1 || completedIds.has(localSession.id - 1),
+              unlocked: isDone || sessNum === 1 || completedIds.has(Number(dbSessions[idx - 1]?.id)),
               content: {
-                ...localSession.content,
-                chords: dbChords ? { ...(localSession.content.chords || {}), symbols: dbChords } : localSession.content.chords,
-                exercises: dbExercises || localSession.content.exercises
+                theory: dbItem.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`,
+                practice: [],
+                youtubeVideoId: dbItem.youtube_video_id || 'dQw4w9WgXcQ',
+                chords: {
+                  symbols: dbChords,
+                  title: 'Các Hợp Âm Thực Hành Buổi Này'
+                },
+                exercises: dbExercises
               }
+            };
+          });
+          setSessions(mapped);
+        } else {
+          // Fallback to default local 8 sessions
+          const mapped: Session[] = getSessionsData().map(localSession => {
+            const isDone = completedIds.has(localSession.id);
+            return {
+              ...localSession,
+              completed: isDone,
+              unlocked: isDone || localSession.id === 1 || completedIds.has(localSession.id - 1)
             };
           });
           setSessions(mapped);
         }
 
-        // 3. Fetch submissions strictly from Neon PostgreSQL Database for this student
+        // 4. Fetch submissions strictly from Neon PostgreSQL Database for this student
         try {
           const dbSubmissions = await sql`
             SELECT * FROM submissions 
@@ -98,14 +151,13 @@ export default function GuitarQuest({ user }: Props) {
       }
     }
 
-    if (studentEmail) {
+    if (studentEmail || studentId) {
       loadNeonData();
     }
-  }, [studentId, studentEmail]);
+  }, [studentId, studentEmail, activeCourseId]);
 
   // Computed progress
   const completedCount = sessions.filter(s => s.completed).length;
-  const progressPercent = Math.round((completedCount / sessions.length) * 100);
 
   // Toggle Exercise completion
   const toggleExercise = (sessionId: number, exId: string) => {
@@ -205,15 +257,37 @@ export default function GuitarQuest({ user }: Props) {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
           
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-tr from-amber-500 to-amber-300 rounded-xl flex items-center justify-center shadow-md shadow-amber-500/20">
-              <span className="text-xl">🎸</span>
+          {/* Logo & Course Switcher */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-tr from-amber-500 to-amber-300 rounded-xl flex items-center justify-center shadow-md shadow-amber-500/20">
+                <span className="text-xl">🎸</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-lg font-black tracking-tight text-[#1b2a47] leading-none">GUITARLAB</span>
+                <span className="text-[9px] font-extrabold text-amber-600 tracking-widest uppercase mt-0.5">CỔNG HỌC VIÊN</span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-black tracking-tight text-[#1b2a47] leading-none">GUITARLAB</span>
-              <span className="text-[9px] font-extrabold text-amber-600 tracking-widest uppercase mt-0.5">CỔNG HỌC VIÊN</span>
-            </div>
+
+            {availableCourses.length > 0 && (
+              <div className="hidden lg:flex items-center gap-2 bg-amber-50/80 px-3 py-1.5 rounded-2xl border border-amber-200">
+                <span className="text-xs font-extrabold text-amber-900">📚 Khóa Học:</span>
+                <select
+                  value={activeCourseId}
+                  onChange={e => {
+                    setActiveCourseId(e.target.value);
+                    setSelectedSession(null);
+                  }}
+                  className="bg-white border border-amber-300 rounded-xl px-2.5 py-1 text-xs font-black text-[#1b2a47] outline-none cursor-pointer"
+                >
+                  {availableCourses.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} ({c.total_sessions || 8} Buổi)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Main Navigation Tabs */}
@@ -808,42 +882,74 @@ export default function GuitarQuest({ user }: Props) {
           <div className="space-y-10 animate-fadeIn">
             
             {/* Banner Tiến Độ Tổng Quan */}
-            <div className="bg-gradient-to-r from-[#1b2a47] via-[#24395e] to-[#114b48] rounded-3xl p-8 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
-              
-              <div className="space-y-3 max-w-xl text-center md:text-left z-10">
-                <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-400/30">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Khóa Học Guitar Đệm Hát 8 Buổi
-                </div>
-                <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
-                  Chào mừng trở lại lớp học!
-                </h1>
-                <p className="text-slate-300 text-sm leading-relaxed">
-                  Lộ trình chuẩn hóa 8 buổi giúp bạn nắm vững nhịp, hợp âm và đệm hát thành thạo các bài hát yêu thích.
-                </p>
-              </div>
+            {(() => {
+              const activeCourseObj = availableCourses.find(c => c.id === activeCourseId) || {
+                title: 'Khoá Học Guitar Đệm Hát 8 Buổi',
+                subtitle: 'Lộ trình chuẩn hóa từ Zero đến đệm hát thuần thục bài hát yêu thích',
+                total_sessions: 8
+              };
+              const dynamicProgress = Math.round((completedCount / (sessions.length || activeCourseObj.total_sessions || 8)) * 100);
 
-              {/* Progress Box */}
-              <div className="w-full md:w-80 bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 z-10 shrink-0 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-200">Tiến Độ Khóa Học</span>
-                  <span className="text-2xl font-black text-amber-400">{progressPercent}%</span>
-                </div>
+              return (
+                <div className="bg-gradient-to-r from-[#1b2a47] via-[#24395e] to-[#114b48] rounded-3xl p-8 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
+                  
+                  <div className="space-y-3 max-w-xl text-center md:text-left z-10">
+                    <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-300 text-xs font-bold px-3.5 py-1.5 rounded-full border border-amber-400/30">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {activeCourseObj.title} ({sessions.length || activeCourseObj.total_sessions || 8} Buổi)
+                    </div>
+                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+                      Chào mừng trở lại lớp học!
+                    </h1>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      {activeCourseObj.subtitle || 'Lộ trình huấn luyện guitar thực hành chuyên sâu theo từng buổi học.'}
+                    </p>
 
-                <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 rounded-full transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  ></div>
-                </div>
+                    {/* Mobile Course Switcher Selector */}
+                    {availableCourses.length > 1 && (
+                      <div className="lg:hidden pt-2 flex items-center gap-2">
+                        <span className="text-xs font-extrabold text-amber-300">Đổi Khóa:</span>
+                        <select
+                          value={activeCourseId}
+                          onChange={e => {
+                            setActiveCourseId(e.target.value);
+                            setSelectedSession(null);
+                          }}
+                          className="bg-white/10 text-white border border-amber-400/40 rounded-xl px-3 py-1.5 text-xs font-bold outline-none"
+                        >
+                          {availableCourses.map(c => (
+                            <option key={c.id} value={c.id} className="text-slate-900">
+                              {c.title} ({c.total_sessions} Buổi)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
 
-                <div className="flex items-center justify-between text-xs text-slate-300 font-semibold pt-1">
-                  <span>Đã Hoàn Thành:</span>
-                  <span className="text-white font-bold">{completedCount} / {sessions.length} Buổi</span>
-                </div>
-              </div>
+                  {/* Progress Box */}
+                  <div className="w-full md:w-80 bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 z-10 shrink-0 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-200">Tiến Độ Khóa Học</span>
+                      <span className="text-2xl font-black text-amber-400">{dynamicProgress}%</span>
+                    </div>
 
-            </div>
+                    <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 rounded-full transition-all duration-500"
+                        style={{ width: `${dynamicProgress}%` }}
+                      ></div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-slate-300 font-semibold pt-1">
+                      <span>Đã học: {completedCount} / {sessions.length || activeCourseObj.total_sessions || 8} Buổi</span>
+                      <span>{completedCount === (sessions.length || activeCourseObj.total_sessions || 8) ? 'Hoàn Thành! 🎉' : 'Đang Học 🎯'}</span>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })()}
 
             {/* Filter Tabs */}
             <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-200 pb-4">

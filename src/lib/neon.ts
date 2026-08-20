@@ -88,6 +88,17 @@ export async function initNeonSchema() {
       );
     `;
 
+    // 6. User Courses Enrollment Table (Phân Lớp Học Viên)
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_courses (
+        id VARCHAR(255) PRIMARY KEY,
+        student_email VARCHAR(255) NOT NULL,
+        course_id VARCHAR(100) NOT NULL,
+        enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_user_course UNIQUE(student_email, course_id)
+      );
+    `;
+
     // Seed 8 Course Sessions if empty
     const sessionCount = await sql`SELECT COUNT(*) FROM sessions`;
     if (Number(sessionCount[0]?.count || 0) === 0) {
