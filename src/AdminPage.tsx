@@ -278,7 +278,9 @@ export default function AdminPage() {
             </div>
             <div>
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Tổng Học Viên</span>
-              <span className="text-2xl font-black text-[#1b2a47]">28 Học Viên</span>
+              <span className="text-2xl font-black text-[#1b2a47]">
+                {studentsList.length > 0 ? studentsList.length : 3} Học Viên
+              </span>
             </div>
           </div>
 
