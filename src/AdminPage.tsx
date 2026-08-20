@@ -207,8 +207,12 @@ export default function AdminPage() {
     }
 
     const cleanCourseId = newCourseId.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    
+
     try {
+      try {
+        await sql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_order_index_key;`;
+      } catch (e) {}
+
       await sql`
         INSERT INTO courses (id, title, subtitle, description, total_sessions)
         VALUES (${cleanCourseId}, ${newCourseTitle}, ${newCourseSubtitle || 'Khóa học guitar tùy chỉnh'}, ${newCourseSubtitle}, ${newCourseSessions})
