@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getSessionsData, saveSessionsData } from './data/questData';
 import type { Session } from './data/questData';
 import { CHORD_DATABASE } from './data/musicData';
 import { ChordDiagram } from './components/studio/ChordDiagram';
 import { WebcamRecorder } from './components/studio/WebcamRecorder';
+import { sql, initNeonSchema } from './lib/neon';
 import { 
   BookOpen, 
   CheckCircle2, 
@@ -29,6 +30,42 @@ export default function GuitarQuest({ user }: Props) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'COMPLETED' | 'IN_PROGRESS'>('ALL');
   const [, setRefreshKey] = useState(0);
 
+  const studentId = user?.id || 'demo-user';
+
+  // Fetch Live Data from Neon PostgreSQL Database
+  useEffect(() => {
+    async function loadNeonData() {
+      try {
+        await initNeonSchema();
+
+        // 1. Fetch sessions from Neon DB
+        const dbSessions = await sql`SELECT * FROM sessions ORDER BY id ASC`;
+        // 2. Fetch student progress from Neon DB
+        const progressRows = await sql`SELECT * FROM student_progress WHERE student_id = ${studentId}`;
+        const completedIds = new Set(progressRows.filter((p: any) => p.is_completed).map((p: any) => Number(p.session_id)));
+
+        if (dbSessions && dbSessions.length > 0) {
+          const mapped: Session[] = getSessionsData().map(localSession => {
+            const dbItem = dbSessions.find((ds: any) => Number(ds.id) === localSession.id);
+            const isDone = completedIds.has(localSession.id);
+            return {
+              ...localSession,
+              title: dbItem?.title || localSession.title,
+              subtitle: dbItem?.subtitle || localSession.subtitle,
+              completed: isDone || localSession.completed,
+              unlocked: isDone || localSession.unlocked || localSession.id === 1 || completedIds.has(localSession.id - 1)
+            };
+          });
+          setSessions(mapped);
+        }
+      } catch (err) {
+        console.warn('Neon DB dynamic fetch error, using local fallback:', err);
+      }
+    }
+
+    loadNeonData();
+  }, [studentId]);
+
   // Computed progress
   const completedCount = sessions.filter(s => s.completed).length;
   const progressPercent = Math.round((completedCount / sessions.length) * 100);
@@ -51,7 +88,7 @@ export default function GuitarQuest({ user }: Props) {
   };
 
   // Mark Session as Completed
-  const handleCompleteSession = (session: Session) => {
+  const handleCompleteSession = async (session: Session) => {
     const updated = sessions.map(s => {
       if (s.id === session.id) {
         return { ...s, completed: true };
@@ -66,6 +103,17 @@ export default function GuitarQuest({ user }: Props) {
     saveSessionsData(updated);
     const found = updated.find(s => s.id === session.id);
     if (found) setSelectedSession(found);
+
+    // Save progress to Neon PostgreSQL Database
+    try {
+      const progId = `prog_${studentId}_${session.id}`;
+      await sql`
+        INSERT INTO student_progress (id, student_id, session_id, is_completed, completed_at)
+        VALUES (${progId}, ${studentId}, ${session.id}, true, CURRENT_TIMESTAMP)
+      `;
+    } catch (e) {
+      console.warn('Neon DB progress save:', e);
+    }
   };
 
   // Filtered Sessions

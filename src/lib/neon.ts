@@ -77,7 +77,23 @@ export async function initNeonSchema() {
       );
     `;
 
-    console.log('✅ Neon Full LMS Database Schema initialized successfully!');
+    // Seed 8 sessions if empty
+    const existingCount = await sql`SELECT COUNT(*) FROM sessions`;
+    if (Number(existingCount[0]?.count || 0) === 0) {
+      await sql`
+        INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, chords, order_index) VALUES
+        (1, 'guitar-8-buoi', 'Làm Quen Đàn Guitar & Nhịp Căn Bản', 'Tư thế cầm đàn, gảy 6 dây mở và lắng nghe âm sắc', '🎸', 'dQw4w9WgXcQ', ARRAY['Em', 'Am'], 1),
+        (2, 'guitar-8-buoi', 'Hợp Âm Em, Am & Đệm Hát Bài Đầu Tiên', 'Bấm 2 hợp âm huyền thoại và tập chuyển nhịp 4/4', '🎵', 'dQw4w9WgXcQ', ARRAY['Em', 'Am', 'C'], 2),
+        (3, 'guitar-8-buoi', 'Hợp Âm G, C, D & Chuyển Hợp Âm Mượt Mà', 'Hoàn thiện bộ 5 hợp âm quốc dân đệm hàng trăm bài hát', '🎶', 'dQw4w9WgXcQ', ARRAY['G', 'C', 'D', 'Em', 'Am'], 3),
+        (4, 'guitar-8-buoi', 'Kỹ Thuật Quạt Dây (Strumming) Disco & Pop', 'Tạo tiết tấu sôi động bằng tay phải quạt dây', '⚡', 'dQw4w9WgXcQ', ARRAY['G', 'C', 'D', 'Em', 'Am'], 4),
+        (5, 'guitar-8-buoi', 'Hợp Âm F, Bm & Quạt Điệu Slow Rock', 'Luyện tập chuyển hợp âm nhanh và điệu 6/8', '🎼', 'dQw4w9WgXcQ', ARRAY['F', 'Bm', 'G', 'C', 'D'], 5),
+        (6, 'guitar-8-buoi', 'Kỹ Thuật Rải Dây (Fingerpicking) & Nhịp 3/4', 'Rải dây nhẹ nhàng truyền cảm cho bài hát Pop Ballad', '✨', 'dQw4w9WgXcQ', ARRAY['C', 'G', 'Am', 'F'], 6),
+        (7, 'guitar-8-buoi', 'Hợp Âm Chặn (Barre Chords) Căn Bản', 'Chinh phục hợp âm chặn và làm chủ cần đàn', '🔥', 'dQw4w9WgXcQ', ARRAY['F', 'Bm', 'Fm'], 7),
+        (8, 'guitar-8-buoi', 'Gam Pentatonic, Solo Đơn Giản & Tổng Kết', 'Tự nhìn hợp âm đệm hát bài yêu thích và solo dạo đầu', '🏆', 'dQw4w9WgXcQ', ARRAY['Am', 'C', 'G', 'F', 'Dm'], 8);
+      `;
+    }
+
+    console.log('✅ Neon Full LMS Database Schema & Seed Data initialized!');
   } catch (err) {
     console.warn('Neon DB init warning:', err);
   }
