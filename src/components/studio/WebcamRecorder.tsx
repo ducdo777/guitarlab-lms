@@ -127,16 +127,28 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
     return `${m}:${s}`;
   };
 
-  // Upload lên Supabase Storage và lưu vào Database / localStorage
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Upload lên Database / localStorage
   const submitVideo = async () => {
     if (!videoBlob) return;
     setUploading(true);
 
     const submissionId = `sub-${Date.now()}`;
     const timestamp = new Date().toLocaleString('vi-VN');
+    const currentUserName = localStorage.getItem('temp_user_name') || (studentId === 'demo-user' ? 'Khách Xem Trước' : 'Học Viên Guitar');
+    const currentUserEmail = localStorage.getItem('temp_user_email') || 'student@guitarlab.vn';
 
     try {
-      let finalVideoUrl = videoUrl || '';
+      // Convert blob to base64 Data URI so it works 100% reliably in any tab without storage bucket dependencies
+      const base64DataUrl = await blobToBase64(videoBlob);
+      let finalVideoUrl = base64DataUrl;
 
       // Try uploading to Supabase Storage if configured
       try {
@@ -152,14 +164,14 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
           }
         }
       } catch (storageErr) {
-        console.warn('Bỏ qua lỗi Supabase storage, lưu local video URL');
+        console.warn('Supabase storage note: using data URI');
       }
 
       // Save submission record locally in localStorage so AdminPage immediately sees it!
       const newLocalSubmission = {
         id: submissionId,
-        student_name: studentId === 'demo-user' ? 'Khách Xem Trước' : 'Học Viên Guitar',
-        student_email: 'student@guitarlab.vn',
+        student_name: currentUserName,
+        student_email: currentUserEmail,
         session_id: sessionId,
         video_url: finalVideoUrl,
         created_at: timestamp,
@@ -167,13 +179,14 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
       };
 
       const existingSubmissions = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
-      localStorage.setItem('guitarlab_submissions', JSON.stringify([newLocalSubmission, ...existingSubmissions]));
+      const updatedSubmissions = [newLocalSubmission, ...existingSubmissions];
+      localStorage.setItem('guitarlab_submissions', JSON.stringify(updatedSubmissions));
 
       // Try inserting into Neon PostgreSQL Database
       try {
         await sql`
           INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status)
-          VALUES (${submissionId}, ${studentId}, ${newLocalSubmission.student_name}, 'student@guitarlab.vn', ${sessionId}, ${finalVideoUrl}, 'PENDING')
+          VALUES (${submissionId}, ${studentId}, ${currentUserName}, ${currentUserEmail}, ${sessionId}, ${finalVideoUrl}, 'PENDING')
         `;
       } catch (neonErr) {
         console.warn('Neon DB insert:', neonErr);

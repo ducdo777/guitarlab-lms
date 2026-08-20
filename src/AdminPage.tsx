@@ -79,6 +79,13 @@ export default function AdminPage() {
     }
 
     loadAllDatabaseData();
+
+    // Auto poll every 3 seconds for real-time submission sync
+    const timer = setInterval(() => {
+      fetchDatabaseSubmissionsAndStudents();
+    }, 3000);
+
+    return () => clearInterval(timer);
   }, []);
 
   const fetchDatabaseSubmissionsAndStudents = async () => {
