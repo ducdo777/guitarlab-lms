@@ -142,7 +142,7 @@ export default function AdminPage() {
 
       if (profilesRows && profilesRows.length > 0) {
         const studentItems: StudentProgressItem[] = profilesRows.map((prof: any) => {
-          const completedList = progressMap.get(prof.id) || [];
+          const completedList = progressMap.get(prof.id) || progressMap.get(prof.email) || [];
           const latestSub = uniqueList.find(s => s.student_email === prof.email || s.student_name === prof.full_name);
           return {
             id: prof.id,

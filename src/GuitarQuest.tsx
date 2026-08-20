@@ -30,7 +30,9 @@ export default function GuitarQuest({ user }: Props) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'COMPLETED' | 'IN_PROGRESS'>('ALL');
   const [, setRefreshKey] = useState(0);
 
-  const studentId = user?.id || 'demo-user';
+  const studentName = user?.user_metadata?.full_name || localStorage.getItem('temp_user_name') || 'Học Viên Guitar';
+  const studentEmail = user?.email || localStorage.getItem('temp_user_email') || 'student@guitarlab.vn';
+  const studentId = user?.id || studentEmail;
 
   // Fetch Live Data from Neon PostgreSQL Database
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function GuitarQuest({ user }: Props) {
         // 1. Fetch sessions from Neon DB
         const dbSessions = await sql`SELECT * FROM sessions ORDER BY id ASC`;
         // 2. Fetch student progress from Neon DB
-        const progressRows = await sql`SELECT * FROM student_progress WHERE student_id = ${studentId}`;
+        const progressRows = await sql`SELECT * FROM student_progress WHERE student_id = ${studentEmail} OR student_id = ${studentId} OR student_id = 'demo-user'`;
         const completedIds = new Set(progressRows.filter((p: any) => p.is_completed).map((p: any) => Number(p.session_id)));
 
         if (dbSessions && dbSessions.length > 0) {
@@ -64,7 +66,7 @@ export default function GuitarQuest({ user }: Props) {
     }
 
     loadNeonData();
-  }, [studentId]);
+  }, [studentId, studentEmail]);
 
   // Computed progress
   const completedCount = sessions.filter(s => s.completed).length;
@@ -104,12 +106,21 @@ export default function GuitarQuest({ user }: Props) {
     const found = updated.find(s => s.id === session.id);
     if (found) setSelectedSession(found);
 
-    // Save progress to Neon PostgreSQL Database
+    // Save progress to Neon PostgreSQL Database with ON CONFLICT upsert
     try {
-      const progId = `prog_${studentId}_${session.id}`;
+      const cleanEmailKey = studentEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      const progId = `prog_${cleanEmailKey}_${session.id}`;
       await sql`
         INSERT INTO student_progress (id, student_id, session_id, is_completed, completed_at)
-        VALUES (${progId}, ${studentId}, ${session.id}, true, CURRENT_TIMESTAMP)
+        VALUES (${progId}, ${studentEmail}, ${session.id}, true, CURRENT_TIMESTAMP)
+        ON CONFLICT (id) DO UPDATE SET is_completed = true, completed_at = CURRENT_TIMESTAMP
+      `;
+
+      // Also ensure profile exists in profiles table so Admin directory shows the student
+      await sql`
+        INSERT INTO profiles (id, full_name, email)
+        VALUES (${studentId}, ${studentName}, ${studentEmail})
+        ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name
       `;
     } catch (e) {
       console.warn('Neon DB progress save:', e);
