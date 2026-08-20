@@ -142,8 +142,8 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
 
     const submissionId = `sub-${Date.now()}`;
     const timestamp = new Date().toLocaleString('vi-VN');
-    const currentUserName = localStorage.getItem('temp_user_name') || (studentId === 'demo-user' ? 'Khách Xem Trước' : 'Học Viên Guitar');
-    const currentUserEmail = localStorage.getItem('temp_user_email') || 'student@guitarlab.vn';
+    const currentUserName = localStorage.getItem('temp_user_name') || 'Học Viên';
+    const currentUserEmail = localStorage.getItem('temp_user_email') || 'hocvien@guitarlab.vn';
 
     try {
       // Convert blob to base64 Data URI so it works 100% reliably in any tab without storage bucket dependencies

@@ -30,11 +30,9 @@ export default function GuitarQuest({ user }: Props) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'COMPLETED' | 'IN_PROGRESS'>('ALL');
   const [, setRefreshKey] = useState(0);
 
-  const studentName = user?.user_metadata?.full_name || localStorage.getItem('temp_user_name') || 'Học Viên Guitar';
+  const studentName = user?.user_metadata?.full_name || localStorage.getItem('temp_user_name') || 'Học Viên';
   const studentEmail = user?.email || localStorage.getItem('temp_user_email') || 'student@guitarlab.vn';
   const studentId = user?.id || studentEmail;
-
-  const isGuest = studentId === 'demo-user' || studentEmail === 'student@guitarlab.vn';
 
   // Fetch Live Data from Neon PostgreSQL Database
   useEffect(() => {
@@ -45,10 +43,11 @@ export default function GuitarQuest({ user }: Props) {
         // 1. Fetch sessions from Neon DB
         const dbSessions = await sql`SELECT * FROM sessions ORDER BY id ASC`;
         
-        // 2. Fetch student progress from Neon DB strictly for this specific user
-        const progressRows = isGuest 
-          ? await sql`SELECT * FROM student_progress WHERE student_id = 'demo-user' OR student_id = 'student@guitarlab.vn'`
-          : await sql`SELECT * FROM student_progress WHERE student_id = ${studentEmail} OR student_id = ${studentId}`;
+        // 2. Fetch student progress from Neon DB strictly for this logged in user
+        const progressRows = await sql`
+          SELECT * FROM student_progress 
+          WHERE student_id = ${studentEmail} OR student_id = ${studentId}
+        `;
 
         const completedIds = new Set(progressRows.filter((p: any) => p.is_completed).map((p: any) => Number(p.session_id)));
 
@@ -67,12 +66,14 @@ export default function GuitarQuest({ user }: Props) {
           setSessions(mapped);
         }
       } catch (err) {
-        console.warn('Neon DB dynamic fetch error, using local fallback:', err);
+        console.warn('Neon DB dynamic fetch error:', err);
       }
     }
 
-    loadNeonData();
-  }, [studentId, studentEmail, isGuest]);
+    if (studentEmail) {
+      loadNeonData();
+    }
+  }, [studentId, studentEmail]);
 
   // Computed progress
   const completedCount = sessions.filter(s => s.completed).length;
