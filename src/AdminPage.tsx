@@ -106,25 +106,14 @@ export default function AdminPage() {
           grade: d.grade,
           feedback: d.feedback
         }));
+        setSubmissions(neonFormatted);
+        if (!selectedSub && neonFormatted.length > 0) setSelectedSub(neonFormatted[0]);
+      } else {
+        setSubmissions([]);
       }
     } catch (neonErr) {
       console.log('Neon DB submissions fetch error:', neonErr);
     }
-
-    // Local submissions fallback
-    const localSubs: SubmissionItem[] = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
-
-    // Merge submissions
-    const mergedMap = new Map<string, SubmissionItem>();
-    [...localSubs, ...neonFormatted].forEach(item => {
-      if (!mergedMap.has(item.id)) {
-        mergedMap.set(item.id, item);
-      }
-    });
-
-    const uniqueList = Array.from(mergedMap.values());
-    setSubmissions(uniqueList);
-    if (uniqueList.length > 0 && !selectedSub) setSelectedSub(uniqueList[0]);
 
     // 4. Fetch Students & Profiles from Neon DB
     try {
@@ -148,7 +137,7 @@ export default function AdminPage() {
           const byEmail = progressMap.get(prof.email) || [];
           const combinedSet = new Set([...byId, ...byEmail]);
           const completedList = Array.from(combinedSet).sort((a, b) => a - b);
-          const latestSub = uniqueList.find(s => s.student_email === prof.email || s.student_name === prof.full_name);
+          const latestSub = neonFormatted.find((s: SubmissionItem) => s.student_email === prof.email || s.student_name === prof.full_name);
           return {
             id: prof.id,
             student_name: prof.full_name || 'Học Viên',

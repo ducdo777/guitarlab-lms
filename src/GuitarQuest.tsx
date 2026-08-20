@@ -81,17 +81,14 @@ export default function GuitarQuest({ user }: Props) {
           setSessions(mapped);
         }
 
-        // 3. Fetch submissions for this student from Neon DB + localStorage
+        // 3. Fetch submissions strictly from Neon PostgreSQL Database for this student
         try {
           const dbSubmissions = await sql`
             SELECT * FROM submissions 
             WHERE LOWER(student_email) = ${studentEmail.toLowerCase()} OR student_id = ${studentId}
             ORDER BY id DESC
           `;
-          const localSubs = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
-          const mergedSubs = [...(dbSubmissions || []), ...localSubs];
-          const uniqueSubs = Array.from(new Map(mergedSubs.map(item => [item.id, item])).values());
-          setMySubmissions(uniqueSubs);
+          setMySubmissions(dbSubmissions || []);
         } catch (subErr) {
           console.warn('Neon DB submissions fetch:', subErr);
         }
