@@ -32,26 +32,33 @@ export default function App() {
 
           {/* Nav Links */}
           <nav className="hidden lg:flex items-center gap-7 text-[#1b2a47] font-semibold text-sm">
-            <a href="#" className="text-amber-600 font-bold border-b-2 border-amber-500 pb-1">Trang chủ</a>
-            <a href="#" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
-              Khoá Học <span className="text-[10px] text-gray-400">▼</span>
+            <a href="/" className="text-amber-600 font-bold border-b-2 border-amber-500 pb-1">Trang chủ</a>
+            <a href="/quest.html" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
+              Khoá Học 8 Buổi
             </a>
-            <a href="#" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
-              Giảng Viên <span className="text-[10px] text-gray-400">▼</span>
+            <a href="/admin.html" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
+              Cổng Giáo Viên
             </a>
-            <a href="#" className="hover:text-amber-600 transition-colors">Cộng Đồng</a>
-            <a href="#" className="hover:text-amber-600 transition-colors uppercase text-xs font-bold bg-amber-50 text-amber-800 px-3 py-1.5 rounded-full border border-amber-200/60">
-              HỌC TẠI GUITARLAB
+            <a href="/quest.html" className="hover:text-amber-600 transition-colors uppercase text-xs font-bold bg-amber-50 text-amber-800 px-3 py-1.5 rounded-full border border-amber-200/60">
+              CỔNG HỌC VIÊN
             </a>
           </nav>
 
-          {/* Action Button */}
-          <a 
-            href="/quest.html" 
-            className="hidden sm:inline-flex bg-gray-100 hover:bg-gray-200 text-[#1b2a47] font-bold text-sm py-2.5 px-6 rounded-full transition-all border border-gray-200/80 shadow-sm"
-          >
-            Cổng Học Viên
-          </a>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
+            <a 
+              href="/admin.html" 
+              className="hidden sm:inline-flex bg-slate-100 hover:bg-slate-200 text-[#1b2a47] font-bold text-xs py-2.5 px-4 rounded-full transition-all border border-slate-200"
+            >
+              Cổng Giáo Viên
+            </a>
+            <a 
+              href="/quest.html" 
+              className="hidden sm:inline-flex bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-5 rounded-full transition-all shadow-md shadow-amber-500/20"
+            >
+              Cổng Học Viên ➔
+            </a>
+          </div>
         </div>
       </header>
 
