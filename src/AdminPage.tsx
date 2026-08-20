@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getSessionsData, saveSessionsData } from './data/questData';
 import type { Session } from './data/questData';
 import { supabase } from './lib/supabase';
+import { sql, initNeonSchema } from './lib/neon';
 import { 
   Users, 
   Video, 
@@ -64,7 +65,10 @@ export default function AdminPage() {
     const data = getSessionsData();
     setSessions(data);
 
-    // Fetch real submissions from Supabase if table exists
+    // Initialize Neon Database schema automatically
+    initNeonSchema();
+
+    // Fetch submissions from Neon & Supabase & LocalStorage
     fetchSupabaseSubmissions();
   }, []);
 
@@ -96,9 +100,30 @@ export default function AdminPage() {
       console.log('Chưa kết nối bảng submissions thật, sử dụng dữ liệu local.');
     }
 
+    // Fetch from Neon PostgreSQL Database
+    let neonFormatted: SubmissionItem[] = [];
+    try {
+      const neonRows = await sql`SELECT * FROM submissions ORDER BY created_at DESC`;
+      if (neonRows && neonRows.length > 0) {
+        neonFormatted = neonRows.map((d: any) => ({
+          id: d.id,
+          student_name: d.student_name || 'Học Viên Demo',
+          student_email: d.student_email || 'student@guitarlab.vn',
+          session_id: Number(d.session_id),
+          video_url: d.video_url,
+          created_at: new Date(d.created_at).toLocaleString('vi-VN'),
+          status: d.status || 'PENDING',
+          grade: d.grade,
+          feedback: d.feedback
+        }));
+      }
+    } catch (neonErr) {
+      console.log('Chưa kết nối bảng Neon DB, bỏ qua.');
+    }
+
     // Merge and deduplicate by item.id
     const mergedMap = new Map<string, SubmissionItem>();
-    [...localSubs, ...fetchedFormatted, ...submissions].forEach(item => {
+    [...localSubs, ...neonFormatted, ...fetchedFormatted, ...submissions].forEach(item => {
       if (!mergedMap.has(item.id)) {
         mergedMap.set(item.id, item);
       }
@@ -140,14 +165,15 @@ export default function AdminPage() {
     const found = updated.find(s => s.id === selectedSub.id);
     if (found) setSelectedSub(found);
 
-    // Update Supabase if available
+    // Update Neon PostgreSQL Database
     try {
-      await supabase
-        .from('submissions')
-        .update({ status: 'REVIEWED', grade: gradeInput, feedback: feedbackInput })
-        .eq('id', selectedSub.id);
+      await sql`
+        UPDATE submissions 
+        SET status = 'REVIEWED', grade = ${gradeInput}, feedback = ${feedbackInput}
+        WHERE id = ${selectedSub.id}
+      `;
     } catch (e) {
-      console.log('Cập nhật Supabase mock mode');
+      console.warn('Neon DB update:', e);
     }
 
     showToast('Đã gửi đánh giá & điểm cho học viên!');

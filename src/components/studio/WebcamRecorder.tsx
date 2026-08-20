@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Camera, Square, RefreshCcw, Check, Video, UploadCloud, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { sql } from '../../lib/neon';
 
 interface Props {
   sessionId: number;
@@ -167,6 +168,16 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
 
       const existingSubmissions = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
       localStorage.setItem('guitarlab_submissions', JSON.stringify([newLocalSubmission, ...existingSubmissions]));
+
+      // Try inserting into Neon PostgreSQL Database
+      try {
+        await sql`
+          INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status)
+          VALUES (${submissionId}, ${studentId}, ${newLocalSubmission.student_name}, 'student@guitarlab.vn', ${sessionId}, ${finalVideoUrl}, 'PENDING')
+        `;
+      } catch (neonErr) {
+        console.warn('Neon DB insert:', neonErr);
+      }
 
       // Try inserting into Supabase DB
       try {
