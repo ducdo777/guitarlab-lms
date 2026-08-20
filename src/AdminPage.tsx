@@ -675,14 +675,89 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Practice Video YouTube ID */}
+                {/* Detailed Theory Text Description */}
+                <div className="pt-2">
+                  <label className="text-xs font-bold text-slate-700 block mb-2">
+                    Mô Tả Nội Dung Chi Tiết Bài Học (Hiển thị dưới tên bài cho học viên):
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={activeSession.content.theory?.[0]?.body || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setSessions(sessions.map(s => {
+                        if (s.id === activeSession.id) {
+                          const updatedTheory = s.content.theory && s.content.theory.length > 0
+                            ? [{ ...s.content.theory[0], body: val }, ...s.content.theory.slice(1)]
+                            : [{ heading: 'Nội dung bài học', body: val }];
+                          return { ...s, content: { ...s.content, theory: updatedTheory } };
+                        }
+                        return s;
+                      }));
+                    }}
+                    placeholder="Nhập hướng dẫn chi tiết nội dung bài học bằng văn bản..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 outline-none focus:border-[#1b2a47]"
+                  />
+                </div>
+
+                {/* Practice Videos List Editor (Up to 5 videos) */}
                 <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Video Bài Giảng YouTube:</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider">
+                      Video Bài Giảng YouTube ({activeSession.content.practice.length}/5 Video):
+                    </h3>
+                    {activeSession.content.practice.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = activeSession.content.practice || [];
+                          const newItem = {
+                            heading: `Video ${current.length + 1}: Hướng dẫn thực hành`,
+                            body: 'Mô tả ngắn nội dung bài giảng video...',
+                            youtubeId: 'dQw4w9WgXcQ'
+                          };
+                          setSessions(sessions.map(s => {
+                            if (s.id === activeSession.id) {
+                              return { ...s, content: { ...s.content, practice: [...current, newItem] } };
+                            }
+                            return s;
+                          }));
+                        }}
+                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all shadow-xs flex items-center gap-1"
+                      >
+                        + Thêm Video (Tối Đa 5)
+                      </button>
+                    )}
+                  </div>
+
                   {activeSession.content.practice.map((p, idx) => (
                     <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-lg">
+                          Video Bài Giảng #{idx + 1}
+                        </span>
+                        {activeSession.content.practice.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = activeSession.content.practice.filter((_, i) => i !== idx);
+                              setSessions(sessions.map(s => {
+                                if (s.id === activeSession.id) {
+                                  return { ...s, content: { ...s.content, practice: updated } };
+                                }
+                                return s;
+                              }));
+                            }}
+                            className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 rounded hover:bg-red-50"
+                          >
+                            Xóa Video này
+                          </button>
+                        )}
+                      </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tên Mục Bài Học:</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tên Video / Tiêu Đề Mục:</label>
                           <input
                             type="text"
                             value={p.heading}
@@ -701,13 +776,18 @@ export default function AdminPage() {
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">YouTube Video ID:</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">YouTube Video ID (hoặc Link Full):</label>
                           <input
                             type="text"
                             placeholder="Ví dụ: dQw4w9WgXcQ"
                             value={p.youtubeId || ''}
                             onChange={e => {
-                              const val = e.target.value;
+                              let val = e.target.value.trim();
+                              if (val.includes('v=')) {
+                                val = val.split('v=')[1]?.split('&')[0] || val;
+                              } else if (val.includes('youtu.be/')) {
+                                val = val.split('youtu.be/')[1]?.split('?')[0] || val;
+                              }
                               setSessions(sessions.map(s => {
                                 if (s.id === activeSession.id) {
                                   const updatedPrac = s.content.practice.map((item, i) => i === idx ? { ...item, youtubeId: val } : item);
@@ -719,6 +799,26 @@ export default function AdminPage() {
                             className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-mono"
                           />
                         </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Mô Tả Ngắn Cho Video Này:</label>
+                        <textarea
+                          rows={2}
+                          value={p.body || ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setSessions(sessions.map(s => {
+                              if (s.id === activeSession.id) {
+                                const updatedPrac = s.content.practice.map((item, i) => i === idx ? { ...item, body: val } : item);
+                                return { ...s, content: { ...s.content, practice: updatedPrac } };
+                              }
+                              return s;
+                            }));
+                          }}
+                          placeholder="Nhập hướng dẫn ngắn cho học viên khi xem video này..."
+                          className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-800"
+                        />
                       </div>
                     </div>
                   ))}

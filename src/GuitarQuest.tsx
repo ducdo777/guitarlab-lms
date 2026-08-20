@@ -283,35 +283,70 @@ export default function GuitarQuest({ user }: Props) {
               {/* Left Column (2 Cols): Theory, YouTube Video, Practice */}
               <div className="lg:col-span-2 space-y-8">
                 
-                {/* 1. Video Bài Giảng */}
+                {/* 1. Mô Tả Nội Dung Bài Học (Văn bản) */}
+                {selectedSession.content.theory?.[0]?.body && (
+                  <section className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 p-6 sm:p-8 rounded-3xl border border-amber-200/80 shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-sm">
+                        📖
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-black text-[#1b2a47]">Nội Dung Hướng Dẫn Chi Tiết</h2>
+                        <p className="text-xs text-amber-800 font-bold">Kiến thức và lộ trình học của Buổi {selectedSession.id}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-700 leading-relaxed font-medium pt-2 whitespace-pre-line">
+                      {selectedSession.content.theory[0].body}
+                    </p>
+                  </section>
+                )}
+
+                {/* 2. Video Bài Giảng YouTube (Tối đa 5 Video) */}
                 {selectedSession.content.practice.some(p => p.youtubeId) && (
-                  <section className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+                  <section className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center">
                         <PlayCircle className="w-6 h-6" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-extrabold text-slate-900">Bài Giảng Video Hướng Dẫn</h2>
-                        <p className="text-xs text-slate-500">Xem kĩ video bài giảng trước khi tập luyện</p>
+                        <h2 className="text-lg font-extrabold text-slate-900">Bài Giảng Video Hướng Dẫn ({selectedSession.content.practice.filter(p => p.youtubeId).length} Video)</h2>
+                        <p className="text-xs text-slate-500">Xem kỹ từng video hướng dẫn trước khi thực hành</p>
                       </div>
                     </div>
 
-                    {selectedSession.content.practice.map((item, i) => (
-                      item.youtubeId ? (
-                        <div key={i} className="space-y-3">
-                          <h3 className="font-bold text-sm text-slate-800">{item.heading}</h3>
-                          <div className="aspect-video w-full rounded-2xl overflow-hidden shadow-md bg-black">
-                            <iframe
-                              src={`https://www.youtube.com/embed/${item.youtubeId}`}
-                              title={item.heading}
-                              className="w-full h-full border-0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            ></iframe>
+                    <div className="space-y-8">
+                      {selectedSession.content.practice.map((item, i) => (
+                        item.youtubeId ? (
+                          <div key={i} className="space-y-3 pb-6 border-b border-slate-100 last:border-b-0 last:pb-0">
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-extrabold text-base text-[#1b2a47] flex items-center gap-2">
+                                <span className="w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                                  {i + 1}
+                                </span>
+                                {item.heading}
+                              </h3>
+                            </div>
+
+                            {/* Short Video Description */}
+                            {item.body && (
+                              <p className="text-xs text-slate-600 font-medium pl-8 bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+                                💡 <span className="font-bold text-slate-700">Ghi chú video:</span> {item.body}
+                              </p>
+                            )}
+
+                            <div className="aspect-video w-full rounded-2xl overflow-hidden shadow-md bg-black">
+                              <iframe
+                                src={`https://www.youtube.com/embed/${item.youtubeId}`}
+                                title={item.heading}
+                                className="w-full h-full border-0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              ></iframe>
+                            </div>
                           </div>
-                        </div>
-                      ) : null
-                    ))}
+                        ) : null
+                      ))}
+                    </div>
                   </section>
                 )}
 
