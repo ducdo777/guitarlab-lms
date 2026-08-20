@@ -149,25 +149,10 @@ export default function AdminPage() {
         });
         setStudentsList(studentItems);
       } else {
-        // Build students from submissions if profiles table empty
-        const studentEmailMap = new Map<string, StudentProgressItem>();
-        uniqueList.forEach(sub => {
-          if (!studentEmailMap.has(sub.student_email)) {
-            studentEmailMap.set(sub.student_email, {
-              id: `user_${sub.student_email}`,
-              student_name: sub.student_name,
-              student_email: sub.student_email,
-              created_at: sub.created_at,
-              completed_count: sub.status === 'REVIEWED' ? sub.session_id : sub.session_id - 1,
-              completed_sessions: Array.from({ length: sub.session_id - 1 }, (_, i) => i + 1),
-              latest_submission: sub
-            });
-          }
-        });
-        setStudentsList(Array.from(studentEmailMap.values()));
+        setStudentsList([]);
       }
     } catch (err) {
-      console.warn('Neon DB profiles fetch note:', err);
+      setStudentsList([]);
     }
   };
 
@@ -502,7 +487,7 @@ export default function AdminPage() {
 
               <div className="flex items-center gap-3">
                 <span className="text-xs font-extrabold bg-amber-50 text-amber-900 px-4 py-2 rounded-xl border border-amber-200 shadow-xs">
-                  Tổng: 4 Học Viên Trong Hệ Thống
+                  Tổng: {studentsList.length} Học Viên Trong Hệ Thống
                 </span>
               </div>
             </div>

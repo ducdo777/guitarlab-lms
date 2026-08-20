@@ -77,9 +77,7 @@ export async function initNeonSchema() {
       );
     `;
 
-    // --- SEEDING DATA IF TABLES ARE EMPTY ---
-
-    // 1. Seed 8 Sessions if empty
+    // Seed 8 Course Sessions if empty
     const sessionCount = await sql`SELECT COUNT(*) FROM sessions`;
     if (Number(sessionCount[0]?.count || 0) === 0) {
       await sql`
@@ -95,49 +93,7 @@ export async function initNeonSchema() {
       `;
     }
 
-    // 2. Seed Profiles if empty
-    const profileCount = await sql`SELECT COUNT(*) FROM profiles`;
-    if (Number(profileCount[0]?.count || 0) === 0) {
-      await sql`
-        INSERT INTO profiles (id, full_name, email, role) VALUES
-        ('user-1', 'Nguyễn Văn An', 'an.nguyen@gmail.com', 'STUDENT'),
-        ('user-2', 'Trần Thị Mai', 'mai.tran@gmail.com', 'STUDENT'),
-        ('demo-user', 'Khách Xem Trước', 'student@guitarlab.vn', 'STUDENT')
-        ON CONFLICT (id) DO NOTHING;
-      `;
-    }
-
-    // 3. Seed Student Progress if empty
-    const progressCount = await sql`SELECT COUNT(*) FROM student_progress`;
-    if (Number(progressCount[0]?.count || 0) === 0) {
-      await sql`
-        INSERT INTO student_progress (id, student_id, session_id, is_completed) VALUES
-        ('p1', 'user-1', 1, true),
-        ('p2', 'user-1', 2, true),
-        ('p3', 'user-1', 3, true),
-        ('p4', 'user-1', 4, true),
-        ('p5', 'user-2', 1, true),
-        ('p6', 'user-2', 2, true),
-        ('p7', 'user-2', 3, true),
-        ('p8', 'user-2', 4, true),
-        ('p9', 'user-2', 5, true),
-        ('p10', 'user-2', 6, true)
-        ON CONFLICT (id) DO NOTHING;
-      `;
-    }
-
-    // 4. Seed Submissions if empty
-    const submissionCount = await sql`SELECT COUNT(*) FROM submissions`;
-    if (Number(submissionCount[0]?.count || 0) === 0) {
-      await sql`
-        INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status, grade, feedback) VALUES
-        ('sub-1', 'user-1', 'Nguyễn Văn An', 'an.nguyen@gmail.com', 5, 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', 'PENDING', NULL, NULL),
-        ('sub-2', 'user-2', 'Trần Thị Mai', 'mai.tran@gmail.com', 2, 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', 'REVIEWED', 9, 'Đàn rất ngón tay tròn, chuyển hợp âm Am sang Em chuẩn nhịp. Cần chú ý giữ lưng thẳng hơn một chút nhé!')
-        ON CONFLICT (id) DO NOTHING;
-      `;
-    }
-
-    console.log('✅ Neon Full LMS Database Schema & Initial Seed Data Ready!');
+    console.log('✅ Neon Database Schema Ready! Zero fake data.');
   } catch (err) {
     console.warn('Neon DB init warning:', err);
   }

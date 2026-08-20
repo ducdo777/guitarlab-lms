@@ -74,6 +74,20 @@ export const Auth: React.FC = () => {
         // 2. Sign Up: Save to Local Registry & Neon DB & Supabase
         const displayName = fullName.trim() || email.split('@')[0];
         
+        // Save user profile to Neon PostgreSQL DB
+        try {
+          const { sql, initNeonSchema } = await import('../../lib/neon');
+          await initNeonSchema();
+          const userId = `user_${Date.now()}`;
+          await sql`
+            INSERT INTO profiles (id, full_name, email) 
+            VALUES (${userId}, ${displayName}, ${email})
+            ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name
+          `;
+        } catch (neonErr) {
+          console.warn('Neon DB profile save:', neonErr);
+        }
+
         // Save to local registry
         const localRegistry = JSON.parse(localStorage.getItem('guitarlab_registered_users') || '{}');
         localRegistry[email.toLowerCase()] = { fullName: displayName, email, password };
