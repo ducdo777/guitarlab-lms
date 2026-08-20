@@ -21,6 +21,8 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [status, setStatus] = useState<'IDLE' | 'RECORDING' | 'REVIEW' | 'SUCCESS'>('IDLE');
 
+  const [inputMode, setInputMode] = useState<'WEBCAM' | 'UPLOAD'>('WEBCAM');
+
   // Khởi động Camera
   const startCamera = async () => {
     setCameraError(null);
@@ -215,19 +217,44 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
     }
   };
 
-  // Giao diện khi mở Camera / Đang quay
+  // Giao diện khi chọn cách nộp bài (Quay webcam HOẶC Tải video từ máy)
   if (status === 'IDLE' || status === 'RECORDING') {
     return (
-      <div className="w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-800 relative">
+      <div className="w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-800 relative p-4 space-y-4">
+        
+        {/* Mode Switcher Tabs */}
         {!stream && (
-          <div className="p-8 sm:p-12 text-center flex flex-col items-center justify-center min-h-[260px] bg-slate-900 text-white">
+          <div className="flex items-center gap-2 p-1.5 bg-slate-800/90 rounded-2xl border border-slate-700/60">
+            <button
+              type="button"
+              onClick={() => setInputMode('WEBCAM')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                inputMode === 'WEBCAM' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Camera className="w-4 h-4" /> Quay Bằng Camera
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode('UPLOAD')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                inputMode === 'UPLOAD' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <UploadCloud className="w-4 h-4" /> Tải Video Từ Máy
+            </button>
+          </div>
+        )}
+
+        {!stream && inputMode === 'WEBCAM' && (
+          <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center min-h-[220px] bg-slate-900 text-white">
             <div className="w-14 h-14 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center mb-4 border border-slate-700 shadow-md">
               <Camera className="w-7 h-7" />
             </div>
             
-            <h3 className="text-base font-bold text-white mb-1">Ghi Hình Thực Hành</h3>
+            <h3 className="text-base font-bold text-white mb-1">Ghi Hình Thực Hành Trực Tiếp</h3>
             <p className="text-xs text-slate-400 max-w-xs mb-6">
-              Bật Camera để kiểm tra góc quay và ghi lại đoạn đàn nộp cho giảng viên
+              Bật Camera để kiểm tra góc quay và ghi lại đoạn đàn nộp cho Giảng viên
             </p>
 
             {cameraError && (
@@ -243,6 +270,39 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
             >
               <Video className="w-4 h-4" /> Bật Camera Ngay
             </button>
+          </div>
+        )}
+
+        {!stream && inputMode === 'UPLOAD' && (
+          <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center min-h-[220px] bg-slate-900 text-white">
+            <div className="w-14 h-14 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center mb-4 border border-slate-700 shadow-md">
+              <UploadCloud className="w-7 h-7" />
+            </div>
+            
+            <h3 className="text-base font-bold text-white mb-1">Tải Video Thực Hành Từ Máy Tính</h3>
+            <p className="text-xs text-slate-400 max-w-xs mb-6">
+              Chọn file clip có sẵn (.mp4, .mov, .webm, .avi) từ máy tính hoặc thiết bị di động
+            </p>
+
+            <label className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-6 py-3 rounded-xl font-extrabold text-xs tracking-wider uppercase flex items-center gap-2.5 transition-all shadow-lg shadow-amber-900/40 cursor-pointer">
+              <UploadCloud className="w-4 h-4" /> Chọn File Video Tải Lên
+              <input 
+                type="file" 
+                accept="video/*" 
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!file.type.startsWith('video/')) {
+                    alert('Vui lòng chọn file video hợp lệ (MP4, MOV, WEBM, AVI)!');
+                    return;
+                  }
+                  setVideoBlob(file);
+                  setVideoUrl(URL.createObjectURL(file));
+                  setStatus('REVIEW');
+                }}
+                className="hidden" 
+              />
+            </label>
           </div>
         )}
 

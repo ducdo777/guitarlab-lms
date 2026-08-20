@@ -17,7 +17,8 @@ import {
   Check, 
   Sparkles,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  Trash2
 } from 'lucide-react';
 
 interface Props {
@@ -169,6 +170,27 @@ export default function GuitarQuest({ user }: Props) {
       `;
     } catch (e) {
       console.warn('Neon DB progress save:', e);
+    }
+  };
+
+  // Delete Video Submission
+  const handleDeleteSubmission = async (subId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa bài nộp video này không? Action này không thể hoàn tác.')) return;
+
+    try {
+      await sql`DELETE FROM submissions WHERE id = ${subId}`;
+
+      const localSubs = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
+      const updatedLocal = localSubs.filter((s: any) => s.id !== subId);
+      localStorage.setItem('guitarlab_submissions', JSON.stringify(updatedLocal));
+
+      setMySubmissions(prev => prev.filter(s => s.id !== subId));
+    } catch (e) {
+      console.warn('Neon DB delete submission note:', e);
+      const localSubs = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
+      const updatedLocal = localSubs.filter((s: any) => s.id !== subId);
+      localStorage.setItem('guitarlab_submissions', JSON.stringify(updatedLocal));
+      setMySubmissions(prev => prev.filter(s => s.id !== subId));
     }
   };
 
@@ -731,8 +753,15 @@ export default function GuitarQuest({ user }: Props) {
                         </div>
                       )}
 
-                      {/* Link to view session */}
-                      <div className="pt-2 flex justify-end">
+                      {/* Link to view session & Delete submission */}
+                      <div className="pt-2 flex items-center justify-between">
+                        <button
+                          onClick={() => handleDeleteSubmission(sub.id)}
+                          className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-xl transition-all border border-red-200/80 flex items-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Xóa Bài Nộp Này
+                        </button>
+                        
                         <button
                           onClick={() => {
                             const foundSess = sessions.find(s => s.id === Number(sub.session_id));

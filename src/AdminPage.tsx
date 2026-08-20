@@ -11,7 +11,8 @@ import {
   MessageSquare, 
   Save, 
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 
 interface SubmissionItem {
@@ -232,6 +233,30 @@ export default function AdminPage() {
     showToast('Đã gửi đánh giá & điểm cho học viên!');
   };
 
+  const handleDeleteSubmissionAdmin = async (subId: string) => {
+    if (!window.confirm('Xác nhận xóa bài nộp video này khỏi CSDL?')) return;
+
+    try {
+      await sql`DELETE FROM submissions WHERE id = ${subId}`;
+
+      const updated = submissions.filter(s => s.id !== subId);
+      setSubmissions(updated);
+      localStorage.setItem('guitarlab_submissions', JSON.stringify(updated));
+
+      if (selectedSub?.id === subId) {
+        setSelectedSub(updated[0] || null);
+      }
+      showToast('Đã xóa bài nộp thành công!');
+    } catch (e) {
+      console.warn('Neon DB delete submission admin note:', e);
+      const updated = submissions.filter(s => s.id !== subId);
+      setSubmissions(updated);
+      localStorage.setItem('guitarlab_submissions', JSON.stringify(updated));
+      if (selectedSub?.id === subId) setSelectedSub(updated[0] || null);
+      showToast('Đã xóa bài nộp!');
+    }
+  };
+
   const activeSession = sessions.find(s => s.id === activeEditorId);
 
   return (
@@ -423,11 +448,19 @@ export default function AdminPage() {
                     <span className="text-xs text-slate-500">{selectedSub.student_email}</span>
                   </div>
 
-                  <div className="text-right">
-                    <span className="text-xs text-slate-400 block mb-1">Thời gian nộp:</span>
-                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-                      {selectedSub.created_at}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleDeleteSubmissionAdmin(selectedSub.id)}
+                      className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl text-xs border border-red-200 flex items-center gap-1.5 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Xóa Bài Nộp
+                    </button>
+                    <div className="text-right">
+                      <span className="text-xs text-slate-400 block mb-1">Thời gian nộp:</span>
+                      <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                        {selectedSub.created_at}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
