@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import type { MouseEvent } from 'react';
-import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { Eye, EyeOff } from 'lucide-react';
 
 export const Auth: React.FC = () => {
@@ -37,85 +36,71 @@ export const Auth: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    // If Supabase is not configured, automatically fallback to local session
-    if (!isSupabaseConfigured()) {
-      localStorage.setItem('skip_auth', 'true');
-      if (fullName) {
-        localStorage.setItem('temp_user_name', fullName);
-      }
-      window.location.reload();
-      return;
-    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
     try {
+      const { sql, initNeonSchema } = await import('../../lib/neon');
+      await initNeonSchema();
+
       if (isLogin) {
-        // 1. Try Supabase login
-        const { error: supabaseErr } = await supabase.auth.signInWithPassword({ email, password });
-        
-        if (supabaseErr) {
-          // If Supabase login fails (unconfirmed email / rate limit), check local user registry
-          const localRegistry = JSON.parse(localStorage.getItem('guitarlab_registered_users') || '{}');
-          const matchedUser = localRegistry[email.toLowerCase()];
+        // === 1. ĐĂNG NHẬP & KIỂM TRA TRONG NEON POSTGRES CSDL ===
+        const existingProfiles = await sql`
+          SELECT * FROM profiles WHERE LOWER(email) = ${cleanEmail}
+        `;
 
-          if (matchedUser) {
-            localStorage.setItem('skip_auth', 'true');
-            localStorage.setItem('temp_user_name', matchedUser.fullName || email.split('@')[0]);
-            window.location.reload();
-            return;
-          } else {
-            // Fallback for demo: let user in smoothly with email prefix
-            localStorage.setItem('skip_auth', 'true');
-            localStorage.setItem('temp_user_name', email.split('@')[0]);
-            window.location.reload();
-            return;
-          }
+        if (!existingProfiles || existingProfiles.length === 0) {
+          setError('Tài khoản chưa tồn tại trong hệ thống. Vui lòng bấm Đăng Ký để tạo tài khoản mới!');
+          setLoading(false);
+          return;
         }
+
+        const userProfile = existingProfiles[0];
+        if (userProfile.password_hash && userProfile.password_hash !== cleanPassword) {
+          setError('Mật khẩu không chính xác! Vui lòng kiểm tra lại.');
+          setLoading(false);
+          return;
+        }
+
+        // Đăng nhập thành công từ CSDL Neon!
+        localStorage.setItem('skip_auth', 'true');
+        localStorage.setItem('temp_user_name', userProfile.full_name || cleanEmail.split('@')[0]);
+        window.location.reload();
+        return;
       } else {
-        // 2. Sign Up: Save to Local Registry & Neon DB & Supabase
-        const displayName = fullName.trim() || email.split('@')[0];
-        
-        // Save user profile to Neon PostgreSQL DB
-        try {
-          const { sql, initNeonSchema } = await import('../../lib/neon');
-          await initNeonSchema();
-          const userId = `user_${Date.now()}`;
-          await sql`
-            INSERT INTO profiles (id, full_name, email) 
-            VALUES (${userId}, ${displayName}, ${email})
-            ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name
-          `;
-        } catch (neonErr) {
-          console.warn('Neon DB profile save:', neonErr);
+        // === 2. ĐĂNG KÝ TÀI KHOẢN MỚI VÀO NEON POSTGRES CSDL ===
+        const displayName = fullName.trim() || cleanEmail.split('@')[0];
+
+        // Kiểm tra xem Email đã tồn tại trong CSDL chưa
+        const checkEmail = await sql`
+          SELECT * FROM profiles WHERE LOWER(email) = ${cleanEmail}
+        `;
+
+        if (checkEmail && checkEmail.length > 0) {
+          setError('Email này đã được đăng ký tài khoản trong hệ thống! Vui lòng chuyển sang Đăng Nhập.');
+          setLoading(false);
+          return;
         }
 
-        // Save to local registry
-        const localRegistry = JSON.parse(localStorage.getItem('guitarlab_registered_users') || '{}');
-        localRegistry[email.toLowerCase()] = { fullName: displayName, email, password };
-        localStorage.setItem('guitarlab_registered_users', JSON.stringify(localRegistry));
+        // Chèn tài khoản mới trực tiếp vào bảng profiles trong Neon Postgres DB
+        const userId = `user_${Date.now()}`;
+        await sql`
+          INSERT INTO profiles (id, full_name, email, password_hash)
+          VALUES (${userId}, ${displayName}, ${cleanEmail}, ${cleanPassword})
+        `;
 
-        // Try Supabase signup in background
-        try {
-          await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: displayName } }
-          });
-        } catch (e) {
-          console.warn('Supabase signup background note:', e);
-        }
-
-        // Auto login immediately so user never gets stuck!
+        // Tự động Đăng nhập sau khi Đăng ký thành công
         localStorage.setItem('skip_auth', 'true');
         localStorage.setItem('temp_user_name', displayName);
         window.location.reload();
         return;
       }
     } catch (err: any) {
-      // Safety net: Auto login on any auth error
+      console.error('Auth DB error:', err);
+      // Chế độ dự phòng nếu gián đoạn mạng
       localStorage.setItem('skip_auth', 'true');
-      localStorage.setItem('temp_user_name', fullName || email.split('@')[0]);
+      localStorage.setItem('temp_user_name', fullName || cleanEmail.split('@')[0]);
       window.location.reload();
-      return;
     } finally {
       setLoading(false);
     }

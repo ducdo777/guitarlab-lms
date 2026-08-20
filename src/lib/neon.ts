@@ -16,11 +16,15 @@ export async function initNeonSchema() {
         id VARCHAR(255) PRIMARY KEY,
         full_name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255),
         role VARCHAR(50) DEFAULT 'STUDENT',
         avatar_url TEXT,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `;
+    try {
+      await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);`;
+    } catch (e) {}
 
     // 2. Courses table
     await sql`
