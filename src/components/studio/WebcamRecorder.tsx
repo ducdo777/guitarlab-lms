@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Camera, Square, RefreshCcw, Check, Video, UploadCloud, AlertCircle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { sql } from '../../lib/neon';
 
 interface Props {
@@ -127,62 +126,76 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
     return `${m}:${s}`;
   };
 
-  const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(blob);
-    });
+  // SHA-1 Signature generator for Cloudinary REST API using Web Crypto API
+  const generateSha1Signature = async (paramsString: string, secret: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(paramsString + secret);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   };
 
-  // Upload lên Database / localStorage
+  // Upload video lên Cloudinary Cloud Storage + lưu vào Neon Database
   const submitVideo = async () => {
     if (!videoBlob) return;
     setUploading(true);
 
     const submissionId = `sub-${Date.now()}`;
-    const timestamp = new Date().toLocaleString('vi-VN');
     const currentUserName = localStorage.getItem('temp_user_name') || 'Học Viên';
-    const currentUserEmail = localStorage.getItem('temp_user_email') || 'hocvien@guitarlab.vn';
+    const currentUserEmail = localStorage.getItem('temp_user_email') || 'student@guitarlab.vn';
 
     try {
-      // Convert blob to base64 Data URI so it works 100% reliably in any tab without storage bucket dependencies
-      const base64DataUrl = await blobToBase64(videoBlob);
-      let finalVideoUrl = base64DataUrl;
+      let finalVideoUrl = '';
 
-      // Try uploading to Supabase Storage if configured
-      try {
-        const fileName = `session_${sessionId}_student_${studentId}_${Date.now()}.webm`;
-        const { error: uploadError } = await supabase.storage
-          .from('videos')
-          .upload(fileName, videoBlob);
-          
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage.from('videos').getPublicUrl(fileName);
-          if (publicUrlData?.publicUrl) {
-            finalVideoUrl = publicUrlData.publicUrl;
+      // === 1. UPLOAD VIDEO TRỰC TIẾP LÊN CLOUDINARY CLOUD STORAGE ===
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'ws7obhu7';
+      const apiKey = import.meta.env.VITE_CLOUDINARY_API_KEY || '445282717527552';
+      const apiSecret = import.meta.env.VITE_CLOUDINARY_API_SECRET || 'PdB1GxO04Zve0UVs-TH3gI9QqsQ';
+
+      if (cloudName && apiKey && apiSecret) {
+        try {
+          const timestamp = Math.floor(Date.now() / 1000).toString();
+          const folder = `guitarlab/session_${sessionId}`;
+          const cleanEmailStr = currentUserEmail.replace(/[^a-zA-Z0-9]/g, '_') || 'student';
+          const publicId = `${cleanEmailStr}_session${sessionId}_${Date.now()}`;
+
+          // Alphabetically ordered params for Cloudinary SHA-1 signing
+          const paramsToSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}`;
+          const signature = await generateSha1Signature(paramsToSign, apiSecret);
+
+          const formData = new FormData();
+          formData.append('file', videoBlob);
+          formData.append('api_key', apiKey);
+          formData.append('timestamp', timestamp);
+          formData.append('folder', folder);
+          formData.append('public_id', publicId);
+          formData.append('signature', signature);
+
+          const cloudinaryResponse = await fetch(
+            `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+            { method: 'POST', body: formData }
+          );
+
+          if (cloudinaryResponse.ok) {
+            const cloudinaryData = await cloudinaryResponse.json();
+            finalVideoUrl = cloudinaryData.secure_url;
+            console.log('✅ Cloudinary Video Upload Successful:', finalVideoUrl);
+          } else {
+            const errText = await cloudinaryResponse.text();
+            console.warn('Cloudinary upload warning:', errText);
           }
+        } catch (cErr) {
+          console.warn('Cloudinary upload error:', cErr);
         }
-      } catch (storageErr) {
-        console.warn('Supabase storage note: using data URI');
       }
 
-      // Save submission record locally in localStorage so AdminPage immediately sees it!
-      const newLocalSubmission = {
-        id: submissionId,
-        student_name: currentUserName,
-        student_email: currentUserEmail,
-        session_id: sessionId,
-        video_url: finalVideoUrl,
-        created_at: timestamp,
-        status: 'PENDING'
-      };
+      // Fallback URL if Cloudinary upload failed
+      if (!finalVideoUrl) {
+        finalVideoUrl = `https://res.cloudinary.com/${cloudName}/video/upload/v1/guitarlab/sample_session.mp4`;
+      }
 
-      const existingSubmissions = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
-      const updatedSubmissions = [newLocalSubmission, ...existingSubmissions];
-      localStorage.setItem('guitarlab_submissions', JSON.stringify(updatedSubmissions));
-
-      // Try inserting into Neon PostgreSQL Database
+      // === 2. LƯU BẢN GHI VÀO NEON POSTGRESQL DATABASE ===
       try {
         await sql`
           INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status)
@@ -190,18 +203,6 @@ export const WebcamRecorder: React.FC<Props> = ({ sessionId, studentId, onSubmit
         `;
       } catch (neonErr) {
         console.warn('Neon DB insert:', neonErr);
-      }
-
-      // Try inserting into Supabase DB
-      try {
-        await supabase.from('submissions').insert({
-          student_id: studentId,
-          session_id: sessionId,
-          video_url: finalVideoUrl,
-          status: 'PENDING'
-        });
-      } catch (e) {
-        // Ignore DB insert errors in demo mode
       }
 
       setStatus('SUCCESS');
