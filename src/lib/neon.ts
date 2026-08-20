@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 
 const databaseUrl = 
   import.meta.env.VITE_DATABASE_URL || 
-  'postgresql://neondb_owner:npg_o45GYDwXyvBf@ep-polished-dream-a15lrtp1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+  'postgresql://neondb_owner:npg_o45GYDwXyvBf@ep-polished-dream-a15lrtp1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 
 // Neon Serverless SQL Client
 export const sql = neon(databaseUrl);
