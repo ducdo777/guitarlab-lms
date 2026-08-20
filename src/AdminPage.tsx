@@ -142,7 +142,13 @@ export default function AdminPage() {
 
       if (profilesRows && profilesRows.length > 0) {
         const studentItems: StudentProgressItem[] = profilesRows.map((prof: any) => {
-          const completedList = progressMap.get(prof.id) || progressMap.get(prof.email) || [];
+          const byId = progressMap.get(prof.id) || [];
+          const byEmail = progressMap.get(prof.email) || [];
+          const byDemo = progressMap.get('demo-user') || [];
+          const byStudent = progressMap.get('student@guitarlab.vn') || [];
+
+          const combinedSet = new Set([...byId, ...byEmail, ...byDemo, ...byStudent]);
+          const completedList = Array.from(combinedSet).sort((a, b) => a - b);
           const latestSub = uniqueList.find(s => s.student_email === prof.email || s.student_name === prof.full_name);
           return {
             id: prof.id,

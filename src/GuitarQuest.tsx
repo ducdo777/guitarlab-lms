@@ -116,6 +116,14 @@ export default function GuitarQuest({ user }: Props) {
         ON CONFLICT (id) DO UPDATE SET is_completed = true, completed_at = CURRENT_TIMESTAMP
       `;
 
+      if (studentId !== studentEmail) {
+        await sql`
+          INSERT INTO student_progress (id, student_id, session_id, is_completed, completed_at)
+          VALUES (${progId}_id, ${studentId}, ${session.id}, true, CURRENT_TIMESTAMP)
+          ON CONFLICT (id) DO UPDATE SET is_completed = true, completed_at = CURRENT_TIMESTAMP
+        `;
+      }
+
       // Also ensure profile exists in profiles table so Admin directory shows the student
       await sql`
         INSERT INTO profiles (id, full_name, email)
