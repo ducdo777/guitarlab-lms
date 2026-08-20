@@ -157,10 +157,18 @@ export default function GuitarQuest({ user }: Props) {
 
             <button
               onClick={async () => {
-                localStorage.removeItem('skip_auth');
-                const { supabase } = await import('./lib/supabase');
-                await supabase.auth.signOut();
-                window.location.reload();
+                try {
+                  localStorage.removeItem('skip_auth');
+                  localStorage.removeItem('temp_user_name');
+                  const { supabase } = await import('./lib/supabase');
+                  await supabase.auth.signOut();
+                } catch (err) {
+                  console.warn('Bỏ qua lỗi Supabase signOut:', err);
+                } finally {
+                  localStorage.removeItem('skip_auth');
+                  localStorage.removeItem('temp_user_name');
+                  window.location.reload();
+                }
               }}
               className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-red-600 bg-slate-100 hover:bg-red-50 px-3.5 py-2 rounded-xl transition-all border border-slate-200 hover:border-red-200"
             >
