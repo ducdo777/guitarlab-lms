@@ -34,6 +34,8 @@ export default function GuitarQuest({ user }: Props) {
   const studentEmail = user?.email || localStorage.getItem('temp_user_email') || 'student@guitarlab.vn';
   const studentId = user?.id || studentEmail;
 
+  const isGuest = studentId === 'demo-user' || studentEmail === 'student@guitarlab.vn';
+
   // Fetch Live Data from Neon PostgreSQL Database
   useEffect(() => {
     async function loadNeonData() {
@@ -42,8 +44,12 @@ export default function GuitarQuest({ user }: Props) {
 
         // 1. Fetch sessions from Neon DB
         const dbSessions = await sql`SELECT * FROM sessions ORDER BY id ASC`;
-        // 2. Fetch student progress from Neon DB
-        const progressRows = await sql`SELECT * FROM student_progress WHERE student_id = ${studentEmail} OR student_id = ${studentId} OR student_id = 'demo-user'`;
+        
+        // 2. Fetch student progress from Neon DB strictly for this specific user
+        const progressRows = isGuest 
+          ? await sql`SELECT * FROM student_progress WHERE student_id = 'demo-user' OR student_id = 'student@guitarlab.vn'`
+          : await sql`SELECT * FROM student_progress WHERE student_id = ${studentEmail} OR student_id = ${studentId}`;
+
         const completedIds = new Set(progressRows.filter((p: any) => p.is_completed).map((p: any) => Number(p.session_id)));
 
         if (dbSessions && dbSessions.length > 0) {
@@ -54,8 +60,8 @@ export default function GuitarQuest({ user }: Props) {
               ...localSession,
               title: dbItem?.title || localSession.title,
               subtitle: dbItem?.subtitle || localSession.subtitle,
-              completed: isDone || localSession.completed,
-              unlocked: isDone || localSession.unlocked || localSession.id === 1 || completedIds.has(localSession.id - 1)
+              completed: isDone,
+              unlocked: isDone || localSession.id === 1 || completedIds.has(localSession.id - 1)
             };
           });
           setSessions(mapped);
@@ -66,7 +72,7 @@ export default function GuitarQuest({ user }: Props) {
     }
 
     loadNeonData();
-  }, [studentId, studentEmail]);
+  }, [studentId, studentEmail, isGuest]);
 
   // Computed progress
   const completedCount = sessions.filter(s => s.completed).length;
