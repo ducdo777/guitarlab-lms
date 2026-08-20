@@ -11,9 +11,19 @@ function Root() {
 
   useEffect(() => {
     if (localStorage.getItem('skip_auth') === 'true') {
-      const customName = localStorage.getItem('temp_user_name') || 'Học Viên Guitar';
+      const customName = localStorage.getItem('temp_user_name') || 'Học Viên';
+      const customEmail = localStorage.getItem('temp_user_email') || '';
+      const customId = localStorage.getItem('temp_user_id') || customEmail;
+
+      // Nếu không có email đã lưu => chưa đăng nhập hợp lệ => hiện lại Auth
+      if (!customEmail) {
+        localStorage.removeItem('skip_auth');
+        setLoading(false);
+        return;
+      }
+
       setSession({
-        user: { id: 'demo-user', user_metadata: { full_name: customName }, email: 'hocvien@guitarlab.vn' }
+        user: { id: customId, user_metadata: { full_name: customName }, email: customEmail }
       });
       setLoading(false);
       return;

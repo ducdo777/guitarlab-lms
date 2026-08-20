@@ -95,7 +95,7 @@ export default function AdminPage() {
       if (neonRows && neonRows.length > 0) {
         neonFormatted = neonRows.map((d: any) => ({
           id: d.id,
-          student_name: d.student_name || 'Học Viên Demo',
+          student_name: d.student_name || 'Học Viên',
           student_email: d.student_email || 'student@guitarlab.vn',
           session_id: Number(d.session_id),
           video_url: d.video_url,

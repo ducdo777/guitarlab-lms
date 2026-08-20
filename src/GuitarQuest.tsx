@@ -31,8 +31,8 @@ export default function GuitarQuest({ user }: Props) {
   const [, setRefreshKey] = useState(0);
 
   const studentName = user?.user_metadata?.full_name || localStorage.getItem('temp_user_name') || 'Học Viên';
-  const studentEmail = user?.email || localStorage.getItem('temp_user_email') || 'student@guitarlab.vn';
-  const studentId = user?.id || studentEmail;
+  const studentEmail = user?.email || localStorage.getItem('temp_user_email') || '';
+  const studentId = user?.id || localStorage.getItem('temp_user_id') || studentEmail;
 
   // Fetch Live Data from Neon PostgreSQL Database
   useEffect(() => {
@@ -186,6 +186,9 @@ export default function GuitarQuest({ user }: Props) {
                 try {
                   localStorage.removeItem('skip_auth');
                   localStorage.removeItem('temp_user_name');
+                  localStorage.removeItem('temp_user_email');
+                  localStorage.removeItem('temp_user_id');
+                  localStorage.removeItem('guitar_quest_data_v4');
                   const { supabase } = await import('./lib/supabase');
                   await supabase.auth.signOut();
                 } catch (err) {
@@ -193,6 +196,9 @@ export default function GuitarQuest({ user }: Props) {
                 } finally {
                   localStorage.removeItem('skip_auth');
                   localStorage.removeItem('temp_user_name');
+                  localStorage.removeItem('temp_user_email');
+                  localStorage.removeItem('temp_user_id');
+                  localStorage.removeItem('guitar_quest_data_v4');
                   window.location.reload();
                 }
               }}
@@ -427,7 +433,7 @@ export default function GuitarQuest({ user }: Props) {
 
                   <WebcamRecorder 
                     sessionId={selectedSession.id} 
-                    studentId={user?.id || 'demo-user'} 
+                    studentId={studentId} 
                     onSubmitted={() => {
                       setRefreshKey(k => k + 1);
                     }}

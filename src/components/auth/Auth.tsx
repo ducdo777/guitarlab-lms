@@ -65,6 +65,8 @@ export const Auth: React.FC = () => {
         // Đăng nhập thành công từ CSDL Neon!
         localStorage.setItem('skip_auth', 'true');
         localStorage.setItem('temp_user_name', userProfile.full_name || cleanEmail.split('@')[0]);
+        localStorage.setItem('temp_user_email', cleanEmail);
+        localStorage.setItem('temp_user_id', userProfile.id);
         window.location.reload();
         return;
       } else {
@@ -92,15 +94,14 @@ export const Auth: React.FC = () => {
         // Tự động Đăng nhập sau khi Đăng ký thành công
         localStorage.setItem('skip_auth', 'true');
         localStorage.setItem('temp_user_name', displayName);
+        localStorage.setItem('temp_user_email', cleanEmail);
+        localStorage.setItem('temp_user_id', userId);
         window.location.reload();
         return;
       }
     } catch (err: any) {
       console.error('Auth DB error:', err);
-      // Chế độ dự phòng nếu gián đoạn mạng
-      localStorage.setItem('skip_auth', 'true');
-      localStorage.setItem('temp_user_name', fullName || cleanEmail.split('@')[0]);
-      window.location.reload();
+      setError('Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại!');
     } finally {
       setLoading(false);
     }
@@ -214,16 +215,6 @@ export const Auth: React.FC = () => {
                 {loading ? 'Đang xử lý...' : (isLogin ? 'Đăng nhập' : 'Tạo tài khoản')}
               </button>
             </form>
-
-            <button
-              onClick={() => {
-                localStorage.setItem('skip_auth', 'true');
-                window.location.reload();
-              }}
-              className="w-full bg-white/5 text-white/70 text-sm font-semibold py-3.5 rounded-xl border border-white/10 mt-4 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              Xem trước (Không cần đăng nhập)
-            </button>
 
             <div className="mt-8 text-center text-sm text-white/50">
               {isLogin ? 'Bạn là người mới? ' : 'Đã có tài khoản? '}
