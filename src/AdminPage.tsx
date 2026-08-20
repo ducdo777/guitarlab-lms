@@ -176,17 +176,24 @@ export default function AdminPage() {
 
     if (activeSession) {
       try {
+        const chordsArr = activeSession.content.chords?.symbols || [];
+        const exercisesArr = JSON.stringify(activeSession.content.exercises || []);
+        const ytbId = activeSession.content.practice[0]?.youtubeId || 'dQw4w9WgXcQ';
+
         await sql`
           UPDATE sessions 
           SET title = ${activeSession.title},
-              subtitle = ${activeSession.subtitle}
+              subtitle = ${activeSession.subtitle},
+              youtube_video_id = ${ytbId},
+              chords = ${chordsArr},
+              exercises = ${exercisesArr}::jsonb
           WHERE id = ${activeSession.id}
         `;
       } catch (e) {
         console.warn('Neon DB session update note:', e);
       }
     }
-    showToast('Đã lưu nội dung khóa học lên CSDL Neon thành công!');
+    showToast('Đã lưu nội dung bài học, hợp âm & danh sách bài tập lên CSDL Neon!');
   };
 
   const handleGradeSubmission = async () => {
@@ -715,6 +722,124 @@ export default function AdminPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                {/* ══ 1. HỢP ÂM TẬP LUYỆN (PRACTICE CHORDS SELECTOR) ══ */}
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Hợp Âm Tập Luyện Cần Bấm (Chords):</h3>
+                    <span className="text-[10px] font-bold text-slate-400">Bấm nút để bật/tắt hợp âm vào bài học</span>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    {['C', 'D', 'E', 'Em', 'Am', 'G', 'F', 'Dm', 'Bm', 'A', 'E7', 'G7', 'C7', 'Fm'].map(chord => {
+                      const activeChords = activeSession.content.chords?.symbols || [];
+                      const isSelected = activeChords.includes(chord);
+                      return (
+                        <button
+                          key={chord}
+                          type="button"
+                          onClick={() => {
+                            const nextChords = isSelected
+                              ? activeChords.filter(c => c !== chord)
+                              : [...activeChords, chord];
+                            
+                            setSessions(sessions.map(s => {
+                              if (s.id === activeSession.id) {
+                                return {
+                                  ...s,
+                                  content: {
+                                    ...s.content,
+                                    chords: {
+                                      ...(s.content.chords || { symbols: [] }),
+                                      symbols: nextChords
+                                    }
+                                  }
+                                };
+                              }
+                              return s;
+                            }));
+                          }}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all border shadow-xs ${
+                            isSelected
+                              ? 'bg-amber-500 text-white border-amber-600 shadow-md scale-105'
+                              : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          {chord} {isSelected && '✓'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ══ 2. CẤU HÌNH BÀI TẬP (CONFIGURABLE EXERCISES LIST) ══ */}
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Danh Sách Bài Tập Cần Hoàn Thành (Exercises):</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentEx = activeSession.content.exercises || [];
+                        const newEx = [
+                          ...currentEx,
+                          { id: `ex_${Date.now()}`, text: 'Bài tập mới: Thực hành rải dây nhịp 4/4', done: false }
+                        ];
+                        setSessions(sessions.map(s => {
+                          if (s.id === activeSession.id) {
+                            return {
+                              ...s,
+                              content: { ...s.content, exercises: newEx }
+                            };
+                          }
+                          return s;
+                        }));
+                      }}
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5"
+                    >
+                      + Thêm Bài Tập Mới
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(activeSession.content.exercises || []).map((ex, exIdx) => (
+                      <div key={ex.id || exIdx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                        <span className="text-xs font-bold text-slate-400 w-6">#{exIdx + 1}</span>
+                        <input
+                          type="text"
+                          value={ex.text}
+                          onChange={e => {
+                            const val = e.target.value;
+                            const updatedEx = (activeSession.content.exercises || []).map((item, i) => 
+                              i === exIdx ? { ...item, text: val } : item
+                            );
+                            setSessions(sessions.map(s => {
+                              if (s.id === activeSession.id) {
+                                return { ...s, content: { ...s.content, exercises: updatedEx } };
+                              }
+                              return s;
+                            }));
+                          }}
+                          className="flex-1 bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 outline-none focus:border-[#1b2a47]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updatedEx = (activeSession.content.exercises || []).filter((_, i) => i !== exIdx);
+                            setSessions(sessions.map(s => {
+                              if (s.id === activeSession.id) {
+                                return { ...s, content: { ...s.content, exercises: updatedEx } };
+                              }
+                              return s;
+                            }));
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
               </div>

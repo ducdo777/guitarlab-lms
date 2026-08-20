@@ -49,9 +49,13 @@ export async function initNeonSchema() {
         youtube_video_id VARCHAR(100),
         theory_content TEXT,
         chords TEXT[],
+        exercises JSONB,
         order_index INT
       );
     `;
+    try {
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS exercises JSONB;`;
+    } catch (e) {}
 
     // 4. Student Progress table
     await sql`

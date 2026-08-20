@@ -55,12 +55,23 @@ export default function GuitarQuest({ user }: Props) {
           const mapped: Session[] = getSessionsData().map(localSession => {
             const dbItem = dbSessions.find((ds: any) => Number(ds.id) === localSession.id);
             const isDone = completedIds.has(localSession.id);
+
+            const dbChords = dbItem?.chords && Array.isArray(dbItem.chords) && dbItem.chords.length > 0 ? dbItem.chords : null;
+            const dbExercises = dbItem?.exercises 
+              ? (typeof dbItem.exercises === 'string' ? JSON.parse(dbItem.exercises) : dbItem.exercises)
+              : null;
+
             return {
               ...localSession,
               title: dbItem?.title || localSession.title,
               subtitle: dbItem?.subtitle || localSession.subtitle,
               completed: isDone,
-              unlocked: isDone || localSession.id === 1 || completedIds.has(localSession.id - 1)
+              unlocked: isDone || localSession.id === 1 || completedIds.has(localSession.id - 1),
+              content: {
+                ...localSession.content,
+                chords: dbChords ? { ...(localSession.content.chords || {}), symbols: dbChords } : localSession.content.chords,
+                exercises: dbExercises || localSession.content.exercises
+              }
             };
           });
           setSessions(mapped);
