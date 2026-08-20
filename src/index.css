@@ -1,0 +1,476 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --bg-main: #f3f4f6;
+  --bg-sidebar: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-panel-alt: #f9f9f9;
+  
+  --primary: #4CAF50;
+  --primary-dark: #3a7a3a;
+  --primary-hover: #45a049;
+  
+  --text-main: #222222;
+  --text-sub: #555555;
+  --text-light: #777777;
+  
+  --border: #e0e0e0;
+  --border-light: #eeeeee;
+  
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.05);
+  
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+/* =========================================================
+   LAYOUT (App.tsx)
+   ========================================================= */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.top-header {
+  height: 60px;
+  background: var(--primary-dark);
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.header-logo {
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.main-container {
+  display: flex;
+  flex: 1;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 250px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 60px;
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+}
+
+.sidebar-section-title {
+  padding: 16px 20px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-light);
+  letter-spacing: 0.05em;
+}
+
+.sidebar-item {
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-sub);
+  cursor: pointer;
+  border-left: 4px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.sidebar-item:hover {
+  background: var(--bg-panel-alt);
+  color: var(--text-main);
+}
+
+.sidebar-item.active {
+  background: #e8f5e9;
+  color: var(--primary-dark);
+  border-left-color: var(--primary);
+  font-weight: 600;
+}
+
+/* CONTENT AREA */
+.content-area {
+  flex: 1;
+  padding: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.page-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: var(--text-sub);
+  margin-bottom: 24px;
+}
+
+/* =========================================================
+   COMPONENTS (Cards, Buttons, etc.)
+   ========================================================= */
+
+/* Aliases for old components to adapt to new light theme */
+.glass-panel-3d, .glass {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Forms & Inputs */
+.segment-control {
+  display: inline-flex;
+  background: var(--border-light);
+  border-radius: 99px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.btn-segment {
+  padding: 8px 16px;
+  border-radius: 99px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-sub);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-segment:hover {
+  color: var(--text-main);
+}
+
+.btn-segment.active {
+  background: var(--bg-panel);
+  color: var(--primary-dark);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn-green {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.text-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+
+.text-mono {
+  font-family: var(--font-mono);
+}
+
+.text-body {
+  color: var(--text-sub);
+  line-height: 1.6;
+}
+
+.section-gap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Badges */
+.badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.badge-green { background: #e8f5e9; color: #2e7d32; }
+.badge-amber { background: #fff8e1; color: #ff8f00; }
+.badge-red { background: #ffebee; color: #c62828; }
+
+/* Bottom Nav (Mobile) */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  z-index: 100;
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  color: var(--text-light);
+  background: none;
+  border: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bottom-nav-item.active {
+  color: var(--primary);
+}
+
+.bottom-nav-item .nav-icon {
+  font-size: 1.2rem;
+  margin-bottom: 2px;
+}
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .bottom-nav { display: flex; }
+  .content-area { padding-bottom: 80px; }
+}
+
+/* =========================================================
+   REALISTIC FRETBOARD (Musicca Style)
+   ========================================================= */
+.fretboard-wrapper {
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.realistic-fretboard {
+  display: flex;
+  min-width: 800px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #f5e6c8; /* Cream/Beige body */
+  position: relative;
+  box-shadow: var(--shadow-md);
+  margin-top: 20px;
+}
+
+.headstock {
+  width: 60px;
+  background: #a66a38; /* Wood color */
+  border-right: 4px solid #444; /* Nut */
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 5;
+}
+
+.fretboard-body {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
+.fret-col {
+  flex: 1;
+  border-right: 2px solid #888888; /* Fret wire */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.fret-col:last-child {
+  border-right: none;
+}
+
+.string-row {
+  flex: 1;
+  height: 36px; /* Row height */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* The actual string visual */
+.guitar-string {
+  position: absolute;
+  left: 0; right: 0;
+  background: #b0b0b0;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.3);
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Note dots */
+.note-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  z-index: 20;
+  color: white;
+  transition: transform 0.1s;
+}
+.note-dot.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.note-dot.visible {
+  opacity: 1;
+}
+.note-dot.root {
+  background: var(--primary);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.note-dot.highlight {
+  background: #2196F3;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.note-dot:active {
+  transform: scale(1.2);
+}
+
+/* Position dots (inlays) */
+.inlay-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #cccccc;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* String Labels on Headstock */
+.string-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.string-label-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+/* Fret Numbers */
+.fret-numbers {
+  display: flex;
+  margin-left: 60px; /* offset for headstock */
+  padding-top: 8px;
+}
+.fret-number {
+  flex: 1;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+/* Chord Card styles */
+.chord-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chord-card:hover {
+  border-color: var(--primary);
+}
+.chord-card.selected {
+  background: #e8f5e9;
+  border-color: var(--primary);
+}
+
+/* Tuning gauge */
+.tuner-ring {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: white;
+  border: 4px solid var(--border-light);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Metronome */
+.beat-led {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-light);
+  font-weight: 700;
+}
+.beat-led.accent-beat {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
+}
+.beat-led.regular-beat {
+  background: #81c784;
+  color: white;
+}
