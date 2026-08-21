@@ -382,6 +382,15 @@ export default function AdminPage() {
                 { id: 2, text: `Quay video đoạn đàn thực hành Buổi ${sessNum} gửi thầy`, done: false }
               ];
 
+          const dbPractice = dbItem?.practice 
+            ? (typeof dbItem.practice === 'string' ? JSON.parse(dbItem.practice) : dbItem.practice)
+            : (dbItem?.youtube_video_id 
+                ? [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: dbItem.youtube_video_id }]
+                : [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: 'dQw4w9WgXcQ' }]);
+
+          const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
+          const dbTheory = [{ heading: 'Nội dung bài học', body: theoryText }];
+
           return {
             id: Number(dbItem.id),
             title: dbItem.title || `Buổi ${sessNum}: Bài thực hành ${sessNum}`,
@@ -394,9 +403,9 @@ export default function AdminPage() {
             completed: false,
             unlocked: true,
             content: {
-              theory: dbItem.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`,
-              practice: [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: dbItem.youtube_video_id || 'dQw4w9WgXcQ' }],
-              youtubeVideoId: dbItem.youtube_video_id || 'dQw4w9WgXcQ',
+              theory: dbTheory,
+              practice: dbPractice,
+              youtubeVideoId: dbPractice[0]?.youtubeId || dbItem.youtube_video_id || 'dQw4w9WgXcQ',
               chords: {
                 symbols: dbChords,
                 title: 'Các Hợp Âm Thực Hành Buổi Này'
@@ -472,25 +481,31 @@ export default function AdminPage() {
   const handleSaveEditor = async () => {
     saveSessionsData(sessions);
 
-    if (activeSession) {
-      try {
-        const chordsArr = activeSession.content.chords?.symbols || [];
-        const exercisesArr = JSON.stringify(activeSession.content.exercises || []);
-        const ytbId = activeSession.content.practice[0]?.youtubeId || (activeSession.content as any).youtubeVideoId || 'dQw4w9WgXcQ';
-        const theoryContent = typeof activeSession.content.theory === 'string' ? activeSession.content.theory : '';
+    try {
+      for (let idx = 0; idx < sessions.length; idx++) {
+        const sess = sessions[idx];
+        const chordsArr = sess.content.chords?.symbols || [];
+        const exercisesArr = JSON.stringify(sess.content.exercises || []);
+        const ytbId = sess.content.practice[0]?.youtubeId || (sess.content as any).youtubeVideoId || 'dQw4w9WgXcQ';
+        const theoryText = typeof sess.content.theory === 'string' 
+          ? sess.content.theory 
+          : (sess.content.theory?.[0]?.body || '');
+        const practiceJson = JSON.stringify(sess.content.practice || []);
 
         await sql`
-          INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, theory_content, chords, exercises)
+          INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, theory_content, practice, chords, exercises, order_index)
           VALUES (
-            ${activeSession.id}, 
+            ${sess.id}, 
             ${editorCourseId}, 
-            ${activeSession.title}, 
-            ${activeSession.subtitle}, 
-            ${activeSession.icon || '🎸'}, 
+            ${sess.title}, 
+            ${sess.subtitle}, 
+            ${sess.icon || '🎸'}, 
             ${ytbId}, 
-            ${theoryContent}, 
+            ${theoryText}, 
+            ${practiceJson}::jsonb, 
             ${chordsArr}, 
-            ${exercisesArr}::jsonb
+            ${exercisesArr}::jsonb,
+            ${idx + 1}
           )
           ON CONFLICT (id) DO UPDATE SET 
             course_id = EXCLUDED.course_id,
@@ -498,14 +513,17 @@ export default function AdminPage() {
             subtitle = EXCLUDED.subtitle,
             youtube_video_id = EXCLUDED.youtube_video_id,
             theory_content = EXCLUDED.theory_content,
+            practice = EXCLUDED.practice,
             chords = EXCLUDED.chords,
-            exercises = EXCLUDED.exercises
+            exercises = EXCLUDED.exercises,
+            order_index = EXCLUDED.order_index
         `;
-      } catch (e) {
-        console.warn('Neon DB session update note:', e);
       }
+      showToast(`Đã lưu toàn bộ nội dung bài học, video & bài tập cho khóa ${editorCourseId} lên CSDL Neon!`);
+    } catch (e: any) {
+      console.warn('Neon DB session update error:', e);
+      alert('Lỗi lưu bài học: ' + e.message);
     }
-    showToast(`Đã lưu cấu hình bài học cho khóa ${editorCourseId} lên CSDL Neon!`);
   };
 
   const handleGradeSubmission = async () => {

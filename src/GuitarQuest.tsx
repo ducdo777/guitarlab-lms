@@ -116,6 +116,15 @@ export default function GuitarQuest({ user }: Props) {
                   { id: 2, text: `Quay video đoạn đàn thực hành Buổi ${sessNum} gửi thầy`, done: isDone }
                 ];
 
+            const dbPractice = dbItem?.practice 
+              ? (typeof dbItem.practice === 'string' ? JSON.parse(dbItem.practice) : dbItem.practice)
+              : (dbItem?.youtube_video_id 
+                  ? [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: dbItem.youtube_video_id }]
+                  : [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: 'dQw4w9WgXcQ' }]);
+
+            const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
+            const dbTheory = [{ heading: 'Nội dung bài học', body: theoryText }];
+
             return {
               id: Number(dbItem.id),
               title: dbItem.title || `Buổi ${sessNum}: Bài thực hành ${sessNum}`,
@@ -128,9 +137,9 @@ export default function GuitarQuest({ user }: Props) {
               completed: isDone,
               unlocked: isDone || sessNum === 1 || completedIds.has(Number(dbSessions[idx - 1]?.id)),
               content: {
-                theory: dbItem.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`,
-                practice: [],
-                youtubeVideoId: dbItem.youtube_video_id || 'dQw4w9WgXcQ',
+                theory: dbTheory,
+                practice: dbPractice,
+                youtubeVideoId: dbPractice[0]?.youtubeId || dbItem.youtube_video_id || 'dQw4w9WgXcQ',
                 chords: {
                   symbols: dbChords,
                   title: 'Các Hợp Âm Thực Hành Buổi Này'

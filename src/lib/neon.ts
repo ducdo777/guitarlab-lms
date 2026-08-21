@@ -58,6 +58,8 @@ export async function initNeonSchema() {
     `;
     try {
       await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS exercises JSONB;`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS practice JSONB;`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS theory_content TEXT;`;
       await sql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_order_index_key;`;
     } catch (e) {}
 
