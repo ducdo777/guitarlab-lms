@@ -56,21 +56,33 @@ export default function GuitarQuest({ user }: Props) {
             WHERE LOWER(student_email) = ${studentEmail.toLowerCase()}
           `;
 
-          const enrolledCourseIds = new Set((enrolledRows || []).map((r: any) => r.course_id));
-          enrolledCourseIds.add('guitar-8-buoi');
+          let enrolledCourseIds: Set<string>;
+          if (enrolledRows && enrolledRows.length > 0) {
+            enrolledCourseIds = new Set(enrolledRows.map((r: any) => r.course_id));
+          } else {
+            // Brand new student with 0 records: auto-enroll in guitar-8-buoi
+            enrolledCourseIds = new Set(['guitar-8-buoi']);
+            const cleanEmailKey = studentEmail.replace(/[^a-zA-Z0-9]/g, '_');
+            const autoEnrollId = `enroll_${cleanEmailKey}_guitar-8-buoi`;
+            try {
+              await sql`
+                INSERT INTO user_courses (id, student_email, course_id)
+                VALUES (${autoEnrollId}, ${studentEmail}, 'guitar-8-buoi')
+                ON CONFLICT (student_email, course_id) DO NOTHING
+              `;
+            } catch (aeErr) {}
+          }
 
           enrolledCoursesList = (dbCourses || []).filter((c: any) => enrolledCourseIds.has(c.id));
           if (enrolledCoursesList.length > 0) {
             setAvailableCourses(enrolledCoursesList);
-            // Auto-select the first enrolled non-default course if student has one,
-            // or keep current selection if already set to an enrolled course
             const currentIsEnrolled = enrolledCoursesList.some((c: any) => c.id === activeCourseId);
             if (!currentIsEnrolled) {
-              const firstNonDefault = enrolledCoursesList.find((c: any) => c.id !== 'guitar-8-buoi');
-              setActiveCourseId(firstNonDefault ? firstNonDefault.id : 'guitar-8-buoi');
+              setActiveCourseId(enrolledCoursesList[0].id);
             }
           } else {
             setAvailableCourses([{ id: 'guitar-8-buoi', title: 'Khoá Học Guitar Đệm Hát 8 Buổi', total_sessions: 8 }]);
+            setActiveCourseId('guitar-8-buoi');
           }
         } catch (cErr) {
           console.warn('Neon DB courses fetch note:', cErr);

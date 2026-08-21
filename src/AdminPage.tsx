@@ -248,25 +248,65 @@ export default function AdminPage() {
   };
 
   const handleToggleEnrollment = async (studentEmail: string, courseId: string, isEnrolled: boolean) => {
-    const cleanEmailKey = studentEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    const cleanEmail = studentEmail.trim().toLowerCase();
+    const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
     const enrollId = `enroll_${cleanEmailKey}_${courseId}`;
+    const targetCourse = coursesList.find(c => c.id === courseId);
+    const courseTitle = targetCourse?.title || courseId;
+
     try {
       if (isEnrolled) {
-        await sql`DELETE FROM user_courses WHERE student_email = ${studentEmail} AND course_id = ${courseId}`;
-        setUserEnrollments(prev => prev.filter(e => !(e.student_email === studentEmail && e.course_id === courseId)));
-        showToast(`Đã hủy xếp lớp học viên khỏi khóa ${courseId}`);
+        // ══ XÁC NHẬN GỠ HỌC VIÊN & XÓA SẠCH DỮ LIỆU CŨ ══
+        const confirmRemove = window.confirm(
+          `Xác nhận gỡ học viên (${studentEmail}) khỏi khóa "${courseTitle}"?\n\n` +
+          `⚠️ CẢNH BÁO: Toàn bộ tiến độ học tập và bài nộp video của học viên trong khóa này sẽ được xóa sạch hoàn toàn.`
+        );
+        if (!confirmRemove) return;
+
+        // 1. Delete enrollment from user_courses
+        await sql`
+          DELETE FROM user_courses 
+          WHERE LOWER(student_email) = ${cleanEmail} AND course_id = ${courseId}
+        `;
+
+        // 2. Delete student progress for sessions belonging to this course
+        await sql`
+          DELETE FROM student_progress 
+          WHERE (LOWER(student_id) = ${cleanEmail} OR student_id IN (SELECT id FROM profiles WHERE LOWER(email) = ${cleanEmail}))
+            AND session_id IN (
+              SELECT id FROM sessions 
+              WHERE course_id = ${courseId} OR (course_id IS NULL AND ${courseId} = 'guitar-8-buoi')
+            )
+        `;
+
+        // 3. Delete student video submissions for sessions belonging to this course
+        await sql`
+          DELETE FROM submissions 
+          WHERE (LOWER(student_email) = ${cleanEmail} OR LOWER(student_id) = ${cleanEmail} OR student_id IN (SELECT id FROM profiles WHERE LOWER(email) = ${cleanEmail}))
+            AND session_id IN (
+              SELECT id FROM sessions 
+              WHERE course_id = ${courseId} OR (course_id IS NULL AND ${courseId} = 'guitar-8-buoi')
+            )
+        `;
+
+        // 4. Update local state
+        setUserEnrollments(prev => prev.filter(e => !(e.student_email.toLowerCase() === cleanEmail && e.course_id === courseId)));
+        await fetchDatabaseSubmissionsAndStudents();
+        showToast(`Đã gỡ học viên khỏi khóa "${courseTitle}" và xóa sạch dữ liệu liên quan!`);
       } else {
+        // ══ PHÂN LỚP HỌC VIÊN (KHỞI TẠO MỚI) ══
         await sql`
           INSERT INTO user_courses (id, student_email, course_id)
-          VALUES (${enrollId}, ${studentEmail}, ${courseId})
+          VALUES (${enrollId}, ${cleanEmail}, ${courseId})
           ON CONFLICT (student_email, course_id) DO NOTHING
         `;
-        setUserEnrollments(prev => [...prev, { id: enrollId, student_email: studentEmail, course_id: courseId }]);
-        showToast(`Đã phân học viên vào khóa ${courseId}!`);
+        setUserEnrollments(prev => [...prev, { id: enrollId, student_email: cleanEmail, course_id: courseId }]);
+        await fetchDatabaseSubmissionsAndStudents();
+        showToast(`Đã phân học viên vào khóa "${courseTitle}" (khởi tạo mới 0%)!`);
       }
     } catch (err: any) {
       console.error('Toggle enrollment error:', err);
-      alert('Lỗi phân lớp: ' + err.message);
+      alert('Lỗi cập nhật phân lớp: ' + err.message);
     }
   };
 
@@ -1456,14 +1496,14 @@ export default function AdminPage() {
                           <td className="p-4 text-center">
                             <div className="flex flex-wrap items-center justify-center gap-1.5">
                               {coursesList.map(c => {
-                                const isEnrolled = studentEnrolledCourseIds.includes(c.id) || (c.id === 'guitar-8-buoi');
+                                const isEnrolled = studentEnrolledCourseIds.includes(c.id);
                                 return (
                                   <span
                                     key={c.id}
                                     className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
                                       isEnrolled
-                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                        : 'bg-slate-50 text-slate-400 border-slate-200'
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-xs'
+                                        : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
                                     }`}
                                   >
                                     {c.title} {isEnrolled ? '✓' : ''}
@@ -1777,14 +1817,14 @@ export default function AdminPage() {
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
               <p className="text-xs font-semibold text-slate-500">Tích chọn các khóa học mà học viên được quyền truy cập:</p>
               {coursesList.map(c => {
-                const isEnrolled = userEnrollments.some(e => e.student_email === enrollModalStudent.student_email && e.course_id === c.id) || (c.id === 'guitar-8-buoi');
+                const isEnrolled = userEnrollments.some(e => e.student_email.toLowerCase() === enrollModalStudent.student_email.toLowerCase() && e.course_id === c.id);
 
                 return (
                   <label
                     key={c.id}
                     className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
                       isEnrolled
-                        ? 'bg-emerald-50/70 border-emerald-200 text-slate-900'
+                        ? 'bg-emerald-50/70 border-emerald-200 text-slate-900 shadow-xs'
                         : 'bg-slate-50 border-slate-200 hover:border-slate-300'
                     }`}
                   >
