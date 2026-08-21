@@ -96,6 +96,19 @@ export const Auth: React.FC<AuthProps> = ({ mode = 'student' }) => {
           VALUES (${userId}, ${displayName}, ${cleanEmail}, ${cleanPassword})
         `;
 
+        // Tự động phân học viên mới vào lớp mặc định: "Khoá Học Guitar Đệm Hát 8 Buổi"
+        const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+        const autoEnrollId = `enroll_${cleanEmailKey}_guitar_8_buoi`;
+        try {
+          await sql`
+            INSERT INTO user_courses (id, student_email, course_id)
+            VALUES (${autoEnrollId}, ${cleanEmail}, 'guitar-8-buoi')
+            ON CONFLICT (student_email, course_id) DO NOTHING
+          `;
+        } catch (enrollErr) {
+          console.warn('Auto enrollment error on signup:', enrollErr);
+        }
+
         // Tự động Đăng nhập sau khi Đăng ký thành công
         localStorage.setItem('skip_auth', 'true');
         localStorage.setItem('temp_user_name', displayName);

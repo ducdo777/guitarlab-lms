@@ -138,6 +138,20 @@ export async function initNeonSchema() {
       console.warn('Neon DB admin seed note:', e);
     }
 
+    // Ensure all existing student profiles have at least 'guitar-8-buoi' if they have 0 user_courses
+    try {
+      await sql`
+        INSERT INTO user_courses (id, student_email, course_id)
+        SELECT 'enroll_' || replace(replace(email, '@', '_'), '.', '_') || '_guitar_8_buoi', email, 'guitar-8-buoi'
+        FROM profiles
+        WHERE role != 'SUPER_ADMIN'
+          AND email NOT IN (SELECT student_email FROM user_courses)
+        ON CONFLICT (student_email, course_id) DO NOTHING;
+      `;
+    } catch (e) {
+      console.warn('Neon DB default enrollment migration note:', e);
+    }
+
     console.log('✅ Neon Database Schema Ready! Zero fake data.');
   } catch (err) {
     console.warn('Neon DB init warning:', err);
