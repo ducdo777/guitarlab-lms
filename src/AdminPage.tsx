@@ -15,7 +15,9 @@ import {
   Trash2,
   FolderPlus,
   Plus,
-  GraduationCap
+  GraduationCap,
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 
 interface SubmissionItem {
@@ -551,13 +553,43 @@ export default function AdminPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Super Admin Badge */}
+            <div className="hidden sm:flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 px-3 py-1.5 rounded-xl">
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              <div className="text-left">
+                <span className="text-[11px] font-bold text-amber-200 block leading-tight">
+                  {localStorage.getItem('temp_user_name') || 'Super Admin'}
+                </span>
+                <span className="text-[9px] text-amber-300/70 font-mono block leading-none">
+                  {localStorage.getItem('temp_user_email') || 'admin@guitarlab.vn'}
+                </span>
+              </div>
+            </div>
+
             <a 
               href="/quest.html" 
               className="text-xs font-bold text-amber-200 hover:text-white bg-white/10 hover:bg-white/20 px-3.5 py-2 rounded-xl transition-all border border-amber-400/30 flex items-center gap-1.5"
             >
-              <span>Xem Cổng Học Viên</span>
+              <span>Cổng Học Viên</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
+
+            <button
+              onClick={() => {
+                if (window.confirm('Xác nhận đăng xuất khỏi Cổng Quản Trị?')) {
+                  localStorage.removeItem('skip_auth');
+                  localStorage.removeItem('temp_user_name');
+                  localStorage.removeItem('temp_user_email');
+                  localStorage.removeItem('temp_user_id');
+                  window.location.reload();
+                }
+              }}
+              className="text-xs font-bold text-red-300 hover:text-white bg-red-500/20 hover:bg-red-500/40 px-3.5 py-2 rounded-xl transition-all border border-red-400/30 flex items-center gap-1.5"
+              title="Đăng xuất"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Đăng Xuất</span>
+            </button>
           </div>
         </div>
       </header>

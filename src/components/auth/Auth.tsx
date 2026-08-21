@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 
-export const Auth: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
+interface AuthProps {
+  mode?: 'student' | 'admin';
+}
+
+export const Auth: React.FC<AuthProps> = ({ mode = 'student' }) => {
+  const isAdminMode = mode === 'admin';
+  const [isLogin, setIsLogin] = useState(isAdminMode ? true : true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -137,15 +142,23 @@ export const Auth: React.FC = () => {
             
             {/* Header */}
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-tr from-[#7c3aed] to-[#5ac8fa] rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(124,58,237,0.5)] transform hover:scale-110 transition-transform cursor-pointer">
-                <span className="text-3xl">🎸</span>
+              <div className={`w-16 h-16 ${isAdminMode ? 'bg-gradient-to-tr from-[#1b2a47] to-amber-500' : 'bg-gradient-to-tr from-[#7c3aed] to-[#5ac8fa]'} rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(124,58,237,0.5)] transform hover:scale-110 transition-transform cursor-pointer`}>
+                <span className="text-3xl">{isAdminMode ? '🛡️' : '🎸'}</span>
               </div>
               <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-md">
                 GuitarLab<span className="text-[#5ac8fa]">.</span>
               </h1>
               <p className="text-white/60 text-sm mt-1 font-medium tracking-wide uppercase">
-                {isLogin ? 'Chào mừng trở lại' : 'Bắt đầu hành trình'}
+                {isAdminMode 
+                  ? 'Cổng Quản Trị Viên' 
+                  : (isLogin ? 'Chào mừng trở lại' : 'Bắt đầu hành trình')
+                }
               </p>
+              {isAdminMode && (
+                <p className="text-amber-400/80 text-xs mt-2 font-semibold">
+                  Chỉ dành cho tài khoản Super Admin
+                </p>
+              )}
             </div>
 
             {error && (
@@ -216,15 +229,21 @@ export const Auth: React.FC = () => {
               </button>
             </form>
 
-            <div className="mt-8 text-center text-sm text-white/50">
-              {isLogin ? 'Bạn là người mới? ' : 'Đã có tài khoản? '}
-              <button
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-white font-bold hover:underline decoration-2 underline-offset-4"
-              >
-                {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
-              </button>
-            </div>
+            {!isAdminMode ? (
+              <div className="mt-8 text-center text-sm text-white/50">
+                {isLogin ? 'Bạn là người mới? ' : 'Đã có tài khoản? '}
+                <button
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-white font-bold hover:underline decoration-2 underline-offset-4"
+                >
+                  {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-8 text-center text-xs text-white/40">
+                <a href="/quest.html" className="text-amber-400 hover:underline">← Quay lại Cổng Học Viên</a>
+              </div>
+            )}
 
           </div>
         </div>

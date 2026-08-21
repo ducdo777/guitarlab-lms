@@ -121,6 +121,23 @@ export async function initNeonSchema() {
       `;
     }
 
+    // Seed Super Admin Account if not exists
+    try {
+      const adminExists = await sql`SELECT id FROM profiles WHERE LOWER(email) = 'admin@guitarlab.vn'`;
+      if (!adminExists || adminExists.length === 0) {
+        await sql`
+          INSERT INTO profiles (id, full_name, email, password_hash, role)
+          VALUES ('super_admin_001', 'Giảng Viên GuitarLab', 'admin@guitarlab.vn', 'admin123', 'SUPER_ADMIN')
+          ON CONFLICT (email) DO UPDATE SET role = 'SUPER_ADMIN'
+        `;
+      } else {
+        // Ensure existing admin account always has SUPER_ADMIN role
+        await sql`UPDATE profiles SET role = 'SUPER_ADMIN' WHERE LOWER(email) = 'admin@guitarlab.vn'`;
+      }
+    } catch (e) {
+      console.warn('Neon DB admin seed note:', e);
+    }
+
     console.log('✅ Neon Database Schema Ready! Zero fake data.');
   } catch (err) {
     console.warn('Neon DB init warning:', err);
