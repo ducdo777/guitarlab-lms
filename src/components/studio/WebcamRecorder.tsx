@@ -11,7 +11,10 @@ import {
   Headphones, 
   Sliders, 
   Music, 
-  Sparkles
+  Sparkles,
+  Maximize2,
+  Minimize2,
+  X
 } from 'lucide-react';
 import { sql } from '../../lib/neon';
 import { audioEngine } from '../../services/audioEngine';
@@ -56,6 +59,9 @@ export const WebcamRecorder: React.FC<Props> = ({
   const [status, setStatus] = useState<'IDLE' | 'RECORDING' | 'REVIEW' | 'SUCCESS'>('IDLE');
   const [inputMode, setInputMode] = useState<'WEBCAM' | 'UPLOAD'>('WEBCAM');
 
+  // Zoom / Fullscreen Expanded Mode
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+
   // Mic & Audio Monitoring
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('');
@@ -81,6 +87,17 @@ export const WebcamRecorder: React.FC<Props> = ({
       setMetronomeTimeSig(defaultTimeSignature);
     }
   }, [defaultBpm, defaultTimeSignature]);
+
+  // Handle ESC key to exit expanded mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isExpanded) {
+        setIsExpanded(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isExpanded]);
 
   // Enumerate audio input devices
   const loadAudioDevices = async () => {
@@ -121,15 +138,12 @@ export const WebcamRecorder: React.FC<Props> = ({
       const dest = ctx.createMediaStreamDestination();
       audioDestRef.current = dest;
 
-      // Routing: source -> gain -> analyser -> dest (for recording)
-      //                   gain -> monitorGain -> ctx.destination (for headphone test)
       source.connect(gain);
       gain.connect(analyser);
       gain.connect(dest);
       gain.connect(monitorGain);
       monitorGain.connect(ctx.destination);
 
-      // Start Level Meter Polling
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       const checkLevel = () => {
         if (analyserRef.current) {
@@ -207,7 +221,6 @@ export const WebcamRecorder: React.FC<Props> = ({
         }
         stream.addTrack(newAudioTrack);
         
-        // Re-setup audio graph
         if (audioCtxRef.current) {
           audioCtxRef.current.close();
         }
@@ -223,7 +236,7 @@ export const WebcamRecorder: React.FC<Props> = ({
     if (stream && videoRef.current) {
       videoRef.current.srcObject = stream;
     }
-  }, [stream, status]);
+  }, [stream, status, isExpanded]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -261,6 +274,7 @@ export const WebcamRecorder: React.FC<Props> = ({
     }
     setCurrentBeat(0);
     currentBeatRef.current = 0;
+    setIsExpanded(false);
   };
 
   // Safe MimeType check for cross-browser support
@@ -292,40 +306,38 @@ export const WebcamRecorder: React.FC<Props> = ({
     if (embedMetronome) {
       const beat = currentBeatRef.current;
 
-      // HUD Badge Background Card (Top Right)
-      const badgeWidth = 260;
-      const badgeHeight = 76;
-      const badgeX = width - badgeWidth - 24;
-      const badgeY = 24;
+      const badgeWidth = 240;
+      const badgeHeight = 68;
+      const badgeX = width - badgeWidth - 20;
+      const badgeY = 20;
 
       ctx.save();
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       
-      // Rounded rect
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 16);
+      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 14);
       ctx.fill();
       ctx.stroke();
 
-      // Top text: Metronome info
-      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#f8fafc';
-      ctx.fillText(`⏱️ METRONOME: ${metronomeBpm} BPM (${metronomeTimeSig}/4)`, badgeX + 16, badgeY + 26);
+      ctx.fillText(`⏱️ METRONOME: ${metronomeBpm} BPM (${metronomeTimeSig}/4)`, badgeX + 14, badgeY + 22);
 
-      // Draw Beat Indicator Pills
-      const pillGap = 8;
-      const totalPillsWidth = metronomeTimeSig * 32 + (metronomeTimeSig - 1) * pillGap;
+      const pillGap = 6;
+      const pillWidth = 28;
+      const pillHeight = 22;
+      const totalPillsWidth = metronomeTimeSig * pillWidth + (metronomeTimeSig - 1) * pillGap;
       const startPillX = badgeX + (badgeWidth - totalPillsWidth) / 2;
-      const pillY = badgeY + 38;
+      const pillY = badgeY + 34;
 
       for (let i = 1; i <= metronomeTimeSig; i++) {
-        const pX = startPillX + (i - 1) * (32 + pillGap);
+        const pX = startPillX + (i - 1) * (pillWidth + pillGap);
         const isActive = beat === i;
 
         ctx.beginPath();
-        ctx.roundRect(pX, pillY, 32, 26, 8);
+        ctx.roundRect(pX, pillY, pillWidth, pillHeight, 6);
 
         if (isActive) {
           ctx.fillStyle = i === 1 ? '#f59e0b' : '#10b981';
@@ -335,17 +347,17 @@ export const WebcamRecorder: React.FC<Props> = ({
           ctx.stroke();
 
           ctx.fillStyle = '#0f172a';
-          ctx.font = '900 13px system-ui, sans-serif';
+          ctx.font = '900 12px system-ui, sans-serif';
         } else {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
           ctx.fill();
           ctx.fillStyle = '#94a3b8';
-          ctx.font = 'bold 12px system-ui, sans-serif';
+          ctx.font = 'bold 11px system-ui, sans-serif';
         }
 
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(i.toString(), pX + 16, pillY + 13);
+        ctx.fillText(i.toString(), pX + pillWidth / 2, pillY + pillHeight / 2);
         ctx.textAlign = 'start';
         ctx.textBaseline = 'alphabetic';
       }
@@ -355,20 +367,20 @@ export const WebcamRecorder: React.FC<Props> = ({
 
     // 3. Draw Live REC indicator
     ctx.save();
-    const recX = 24;
-    const recY = 44;
+    const recX = 20;
+    const recY = 40;
     ctx.fillStyle = 'rgba(225, 29, 72, 0.9)';
     ctx.beginPath();
     ctx.arc(recX + 8, recY - 4, 6, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.font = 'bold 15px monospace';
+    ctx.font = 'bold 14px monospace';
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 4;
     const m = Math.floor(timer / 60).toString().padStart(2, '0');
     const s = (timer % 60).toString().padStart(2, '0');
-    ctx.fillText(`REC ${m}:${s}`, recX + 22, recY);
+    ctx.fillText(`REC ${m}:${s}`, recX + 20, recY);
     ctx.restore();
   }, [embedMetronome, metronomeBpm, metronomeTimeSig, timer]);
 
@@ -411,7 +423,6 @@ export const WebcamRecorder: React.FC<Props> = ({
       let recordStream: MediaStream;
 
       if (embedMetronome && canvasRef.current) {
-        // Canvas composite recording with Metronome HUD
         const canvas = canvasRef.current;
         canvas.width = 1280;
         canvas.height = 720;
@@ -426,14 +437,12 @@ export const WebcamRecorder: React.FC<Props> = ({
           ...audioTracks
         ]);
 
-        // Start render loop
         const loop = () => {
           drawMetronomeOverlay();
           animFrameRef.current = requestAnimationFrame(loop);
         };
         loop();
       } else {
-        // Direct stream recording
         const audioTracks = audioDestRef.current
           ? audioDestRef.current.stream.getAudioTracks()
           : stream.getAudioTracks();
@@ -560,7 +569,6 @@ export const WebcamRecorder: React.FC<Props> = ({
         finalVideoUrl = `https://res.cloudinary.com/${cloudName}/video/upload/v1/guitarlab/sample_session.mp4`;
       }
 
-      // Save to Neon Database
       try {
         await sql`
           INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status)
@@ -583,385 +591,428 @@ export const WebcamRecorder: React.FC<Props> = ({
   // Render IDLE or RECORDING view
   if (status === 'IDLE' || status === 'RECORDING') {
     return (
-      <div className="w-full bg-slate-900 rounded-3xl overflow-hidden shadow-xl border border-slate-800 relative p-4 sm:p-6 space-y-5">
-        
+      <>
         {/* Hidden Canvas for Compositing Video + Metronome Overlay */}
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* Mode Switcher Tabs */}
-        {!stream && (
-          <div className="flex items-center gap-2 p-1.5 bg-slate-800/90 rounded-2xl border border-slate-700/60">
-            <button
-              type="button"
-              onClick={() => setInputMode('WEBCAM')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                inputMode === 'WEBCAM' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Camera className="w-4 h-4" /> Quay Bằng Camera
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputMode('UPLOAD')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                inputMode === 'UPLOAD' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <UploadCloud className="w-4 h-4" /> Tải Video Từ Máy
-            </button>
-          </div>
-        )}
+        {/* Outer Wrapper with Fullscreen Expanded Mode Handling */}
+        <div className={`w-full transition-all duration-300 ${
+          isExpanded 
+            ? 'fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl p-4 sm:p-8 flex flex-col items-center justify-center overflow-y-auto' 
+            : 'bg-slate-900 rounded-3xl overflow-hidden shadow-xl border border-slate-800 p-3.5 sm:p-5 space-y-4'
+        }`}>
 
-        {/* Initial Camera Off Placeholder */}
-        {!stream && inputMode === 'WEBCAM' && (
-          <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center min-h-[240px] bg-slate-900 text-white">
-            <div className="w-16 h-16 bg-slate-800 text-amber-400 rounded-3xl flex items-center justify-center mb-4 border border-slate-700 shadow-lg">
-              <Camera className="w-8 h-8" />
+          {/* Mode Switcher Tabs (Only when camera is off) */}
+          {!stream && (
+            <div className="flex items-center gap-2 p-1.5 bg-slate-800/90 rounded-2xl border border-slate-700/60 w-full max-w-md mx-auto">
+              <button
+                type="button"
+                onClick={() => setInputMode('WEBCAM')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                  inputMode === 'WEBCAM' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Camera className="w-4 h-4" /> Quay Camera
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode('UPLOAD')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                  inputMode === 'UPLOAD' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <UploadCloud className="w-4 h-4" /> Tải Video File
+              </button>
             </div>
-            
-            <h3 className="text-base font-extrabold text-white mb-1">Ghi Hình & Kiểm Tra Âm Thanh Thực Hành</h3>
-            <p className="text-xs text-slate-400 max-w-sm mb-6">
-              Hỗ trợ kiểm tra Mic, chỉnh âm lượng đàn/hát và nhúng nhịp Metronome trực tiếp vào video
-            </p>
+          )}
 
-            {cameraError && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/40 text-red-300 rounded-xl text-xs flex items-center gap-2 max-w-sm text-left">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{cameraError}</span>
+          {/* Initial Camera Off Placeholder */}
+          {!stream && inputMode === 'WEBCAM' && (
+            <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center min-h-[200px] bg-slate-900 text-white w-full">
+              <div className="w-14 h-14 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center mb-3 border border-slate-700 shadow-md">
+                <Camera className="w-7 h-7" />
               </div>
-            )}
+              
+              <h3 className="text-sm sm:text-base font-extrabold text-white mb-1">Ghi Hình & Kiểm Tra Âm Thanh</h3>
+              <p className="text-xs text-slate-400 max-w-xs mb-5">
+                Kiểm tra Mic thu, chỉnh âm lượng đàn và nhúng nhịp Metronome vào video
+              </p>
 
-            <button 
-              onClick={startCamera} 
-              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-7 py-3.5 rounded-2xl font-black text-xs tracking-wider uppercase flex items-center gap-2.5 transition-all shadow-xl shadow-amber-900/40"
-            >
-              <Video className="w-4 h-4" /> Bật Camera & Kiểm Tra Mic
-            </button>
-          </div>
-        )}
-
-        {/* Upload Mode */}
-        {!stream && inputMode === 'UPLOAD' && (
-          <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center min-h-[240px] bg-slate-900 text-white">
-            <div className="w-16 h-16 bg-slate-800 text-amber-400 rounded-3xl flex items-center justify-center mb-4 border border-slate-700 shadow-lg">
-              <UploadCloud className="w-8 h-8" />
-            </div>
-            
-            <h3 className="text-base font-extrabold text-white mb-1">Tải Video Thực Hành Từ Máy Tính</h3>
-            <p className="text-xs text-slate-400 max-w-xs mb-6">
-              Chọn file clip có sẵn (.mp4, .mov, .webm) từ điện thoại hoặc máy tính
-            </p>
-
-            <label className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-6 py-3.5 rounded-2xl font-black text-xs tracking-wider uppercase flex items-center gap-2.5 transition-all shadow-xl shadow-amber-900/40 cursor-pointer">
-              <UploadCloud className="w-4 h-4" /> Chọn File Video Tải Lên
-              <input 
-                type="file" 
-                accept="video/*" 
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (!file.type.startsWith('video/')) {
-                    alert('Vui lòng chọn file video hợp lệ (MP4, MOV, WEBM)!');
-                    return;
-                  }
-                  setVideoBlob(file);
-                  setVideoUrl(URL.createObjectURL(file));
-                  setStatus('REVIEW');
-                }} 
-                className="hidden" 
-              />
-            </label>
-          </div>
-        )}
-
-        {/* Live Camera View with Mic Meter & Metronome HUD */}
-        {stream && (
-          <div className="space-y-4">
-            
-            {/* Video Container */}
-            <div className="relative bg-black rounded-3xl overflow-hidden aspect-video flex items-center justify-center border border-white/10 shadow-2xl">
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted 
-                className="w-full h-full object-cover transform -scale-x-100" 
-              />
-
-              {/* In-Preview Metronome HUD (Shown during preview or recording if enabled) */}
-              {embedMetronome && (
-                <div className="absolute top-4 right-4 z-20 bg-slate-950/85 backdrop-blur-md border border-white/20 p-2.5 rounded-2xl shadow-xl flex flex-col items-center gap-1.5">
-                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-200">
-                    <Music className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{metronomeBpm} BPM ({metronomeTimeSig}/4)</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {Array.from({ length: metronomeTimeSig }).map((_, idx) => {
-                      const beatNum = idx + 1;
-                      const isActive = currentBeat === beatNum;
-                      const isAccent = beatNum === 1;
-
-                      return (
-                        <div
-                          key={idx}
-                          className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black transition-all ${
-                            isActive
-                              ? isAccent
-                                ? 'bg-amber-400 text-slate-950 scale-110 shadow-md shadow-amber-400/50'
-                                : 'bg-emerald-400 text-slate-950 scale-105 shadow-md shadow-emerald-400/40'
-                              : 'bg-white/15 text-slate-400'
-                          }`}
-                        >
-                          {beatNum}
-                        </div>
-                      );
-                    })}
-                  </div>
+              {cameraError && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/40 text-red-300 rounded-xl text-xs flex items-center gap-2 max-w-sm text-left">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{cameraError}</span>
                 </div>
               )}
 
-              {/* Bottom Video Controls Overlay */}
-              <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 bg-gradient-to-t from-black/95 via-black/50 to-transparent flex items-center justify-between z-20">
-                <div className="flex items-center gap-3">
+              <button 
+                onClick={startCamera} 
+                className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 px-6 py-3 rounded-xl font-black text-xs tracking-wider uppercase flex items-center gap-2 transition-all shadow-lg shadow-amber-900/30 active:scale-95"
+              >
+                <Video className="w-4 h-4" /> Bật Camera Ngay
+              </button>
+            </div>
+          )}
+
+          {/* Upload Mode */}
+          {!stream && inputMode === 'UPLOAD' && (
+            <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center min-h-[200px] bg-slate-900 text-white w-full">
+              <div className="w-14 h-14 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center mb-3 border border-slate-700 shadow-md">
+                <UploadCloud className="w-7 h-7" />
+              </div>
+              
+              <h3 className="text-sm sm:text-base font-extrabold text-white mb-1">Tải Video Có Sẵn</h3>
+              <p className="text-xs text-slate-400 max-w-xs mb-5">
+                Chọn file clip (.mp4, .mov, .webm) từ máy tính hoặc điện thoại
+              </p>
+
+              <label className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 px-6 py-3 rounded-xl font-black text-xs tracking-wider uppercase flex items-center gap-2 transition-all shadow-lg shadow-amber-900/30 cursor-pointer active:scale-95">
+                <UploadCloud className="w-4 h-4" /> Chọn File Video
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('video/')) {
+                      alert('Vui lòng chọn file video hợp lệ (MP4, MOV, WEBM)!');
+                      return;
+                    }
+                    setVideoBlob(file);
+                    setVideoUrl(URL.createObjectURL(file));
+                    setStatus('REVIEW');
+                  }} 
+                  className="hidden" 
+                />
+              </label>
+            </div>
+          )}
+
+          {/* Live Camera View */}
+          {stream && (
+            <div className={`w-full ${isExpanded ? 'max-w-4xl space-y-4' : 'space-y-3'}`}>
+              
+              {/* Top Bar inside Fullscreen Mode */}
+              {isExpanded && (
+                <div className="flex items-center justify-between pb-2 text-white">
+                  <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
+                    <Camera className="w-5 h-5" />
+                    <span>Chế Độ Toàn Màn Hình (Phóng To Luyện Đàn)</span>
+                  </div>
+                  <button
+                    onClick={() => setIsExpanded(false)}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                  >
+                    <Minimize2 className="w-4 h-4" /> Thu Nhỏ (Esc)
+                  </button>
+                </div>
+              )}
+
+              {/* Video Player Box with Non-Overlapping Header Badges */}
+              <div className={`relative bg-black rounded-2xl sm:rounded-3xl overflow-hidden aspect-video flex items-center justify-center border border-white/10 shadow-2xl ${
+                isExpanded ? 'w-full max-h-[65vh]' : 'w-full'
+              }`}>
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted 
+                  className="w-full h-full object-cover transform -scale-x-100" 
+                />
+
+                {/* Top Left: Recording Status Badge */}
+                <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
                   {recording ? (
-                    <div className="flex items-center gap-2 bg-rose-600/90 text-white px-3.5 py-1.5 rounded-full backdrop-blur-md shadow-lg border border-rose-400/40 animate-pulse">
-                      <div className="w-2.5 h-2.5 bg-white rounded-full" />
-                      <span className="font-mono font-black text-xs">REC {formatTime(timer)}</span>
+                    <div className="flex items-center gap-1.5 bg-rose-600 text-white px-2.5 py-1 rounded-full shadow-lg border border-rose-400/40 animate-pulse text-[11px] font-mono font-black">
+                      <div className="w-2 h-2 bg-white rounded-full" />
+                      <span>REC {formatTime(timer)}</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-300 font-bold bg-black/60 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400" /> Sẵn Sàng Quay
-                    </span>
+                    <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md text-slate-300 px-2.5 py-1 rounded-full border border-white/15 text-[10px] font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span>Sẵn Sàng</span>
+                    </div>
                   )}
                 </div>
+
+                {/* Top Right: Metronome Mini HUD & Zoom Toggle Button */}
+                <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+                  {embedMetronome && (
+                    <div className="bg-slate-950/80 backdrop-blur-md border border-white/20 px-2 py-1 rounded-xl shadow-lg flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-amber-300">
+                        <Music className="w-3 h-3 text-amber-400" />
+                        <span>{metronomeBpm}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: metronomeTimeSig }).map((_, idx) => {
+                          const beatNum = idx + 1;
+                          const isActive = currentBeat === beatNum;
+                          const isAccent = beatNum === 1;
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`w-4 h-4 sm:w-5 sm:h-5 rounded flex items-center justify-center text-[9px] font-black transition-all ${
+                                isActive
+                                  ? isAccent
+                                    ? 'bg-amber-400 text-slate-950 scale-110 shadow-sm'
+                                    : 'bg-emerald-400 text-slate-950 scale-105 shadow-sm'
+                                  : 'bg-white/15 text-slate-400'
+                              }`}
+                            >
+                              {beatNum}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Zoom In / Zoom Out (Fullscreen) Button */}
+                  <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-md text-slate-200 hover:text-white rounded-xl border border-white/20 transition-all shadow-md"
+                    title={isExpanded ? 'Thu nhỏ giao diện' : 'Phóng to toàn màn hình'}
+                  >
+                    {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* ══ CLEAN BOTTOM RECORD CONTROL TOOLBAR (SEPARATED FROM VIDEO TO PREVENT OVERLAPPING) ══ */}
+              <div className="flex items-center justify-between gap-2 p-2 sm:p-3 bg-slate-950/90 rounded-2xl border border-white/10">
                 
-                {/* Center Record Button */}
+                {/* Left: Settings Toggle Button */}
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    showSettings 
+                      ? 'bg-amber-400 text-slate-950 font-black shadow-sm' 
+                      : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                  }`}
+                  title="Cài đặt Micro & Metronome"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>{showSettings ? 'Đóng' : 'Chỉnh Mic & Nhịp'}</span>
+                </button>
+
+                {/* Center: Prominent Record / Stop Button */}
                 <div>
                   {!recording ? (
                     <button 
                       onClick={startRecording} 
-                      className="w-14 h-14 bg-rose-600 hover:bg-rose-700 rounded-full border-4 border-white/30 hover:scale-110 active:scale-95 transition-all flex items-center justify-center shadow-2xl shadow-rose-900/60 group"
+                      className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-rose-900/50 hover:scale-105 active:scale-95 transition-all"
                       title="Bắt đầu quay video"
                     >
-                      <div className="w-5 h-5 bg-white rounded-full group-hover:scale-90 transition-transform" />
+                      <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+                      <span>Bắt Đầu Quay</span>
                     </button>
                   ) : (
                     <button 
                       onClick={stopRecording} 
-                      className="w-14 h-14 bg-white hover:bg-slate-200 text-slate-900 rounded-full border-4 border-rose-500/40 transition-all flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95"
+                      className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-950 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all animate-bounce"
                       title="Dừng quay video"
                     >
-                      <Square className="w-5 h-5 fill-slate-900" />
+                      <Square className="w-3.5 h-3.5 fill-slate-950" />
+                      <span>Dừng Quay ({formatTime(timer)})</span>
                     </button>
                   )}
                 </div>
 
-                {/* Right Options */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowSettings(!showSettings)}
-                    className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                      showSettings ? 'bg-amber-500 text-slate-950' : 'bg-white/15 text-slate-200 hover:bg-white/25'
-                    }`}
-                    title="Cài đặt Micro & Metronome"
-                  >
-                    <Sliders className="w-4 h-4" />
-                    <span className="hidden sm:inline">Chỉnh Âm</span>
-                  </button>
-
-                  <button
-                    onClick={stopCamera}
-                    className="text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl transition-colors"
-                  >
-                    Tắt Cam
-                  </button>
-                </div>
+                {/* Right: Turn Off Camera */}
+                <button
+                  onClick={stopCamera}
+                  className="px-3 py-2 text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
+                >
+                  Tắt Cam
+                </button>
               </div>
-            </div>
 
-            {/* ══ LIVE MIC VU METER & AUDIO MONITORING ══ */}
-            <div className="p-4 bg-slate-950/80 rounded-2xl border border-white/10 space-y-3">
-              <div className="flex items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2 font-bold text-slate-300">
-                  <Mic className="w-4 h-4 text-emerald-400" />
-                  <span>Mức Âm Thanh Thu Mic (VU Meter):</span>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <span className={`font-mono font-bold text-xs ${
-                    audioLevel > 80 ? 'text-rose-400' : audioLevel > 50 ? 'text-amber-400' : 'text-emerald-400'
-                  }`}>
-                    {audioLevel}% {audioLevel > 80 ? '(Quá to)' : audioLevel > 20 ? '(Tốt)' : '(Yếu)'}
-                  </span>
-
+              {/* ══ LIVE MIC VU METER & AUDIO MONITORING ══ */}
+              <div className="p-3 bg-slate-950/80 rounded-2xl border border-white/10 space-y-2">
+                <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-300 text-[11px] sm:text-xs">
+                    <Mic className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Mức Mic (VU):</span>
+                    <span className={`font-mono font-black ${
+                      audioLevel > 80 ? 'text-rose-400' : audioLevel > 50 ? 'text-amber-400' : 'text-emerald-400'
+                    }`}>
+                      {audioLevel}% {audioLevel > 80 ? '(Quá to)' : audioLevel > 20 ? '(Tốt)' : '(Yếu)'}
+                    </span>
+                  </div>
+                  
                   {/* Headphone Audio Monitor Toggle */}
                   <button
                     type="button"
                     onClick={() => setIsMonitoring(!isMonitoring)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 ${
+                    className={`px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold border transition-all flex items-center gap-1 shrink-0 ${
                       isMonitoring 
                         ? 'bg-purple-600 text-white border-purple-400 shadow-sm animate-pulse' 
                         : 'bg-white/10 text-slate-300 border-white/10 hover:bg-white/20'
                     }`}
-                    title="Nghe lại âm thanh mic trực tiếp qua tai nghe để kiểm tra độ rõ"
+                    title="Nghe lại âm thanh mic trực tiếp qua tai nghe"
                   >
-                    <Headphones className="w-3.5 h-3.5" />
+                    <Headphones className="w-3 h-3" />
                     <span>{isMonitoring ? 'Đang Nghe Mic' : 'Kiểm Tra Tai Nghe'}</span>
                   </button>
                 </div>
-              </div>
 
-              {/* Dynamic VU Meter Bar */}
-              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-white/5">
-                <div 
-                  className="h-full rounded-full transition-all duration-75"
-                  style={{
-                    width: `${audioLevel}%`,
-                    background: audioLevel > 85 
-                      ? 'linear-gradient(to right, #10b981, #f59e0b, #ef4444)' 
-                      : audioLevel > 60 
-                        ? 'linear-gradient(to right, #10b981, #f59e0b)' 
-                        : '#10b981'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* ══ EXPANDABLE SETTINGS: MIC SELECTION, GAIN & METRONOME IN VIDEO ══ */}
-            {showSettings && (
-              <div className="p-4 sm:p-5 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-4 shadow-xl">
-                
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sliders className="w-4 h-4" /> Thiết Lập Microphone & Metronome Khi Quay
-                  </h4>
-                  <button 
-                    onClick={() => setShowSettings(false)}
-                    className="text-xs text-slate-400 hover:text-white font-bold"
-                  >
-                    ✕ Đóng
-                  </button>
+                {/* Dynamic VU Meter Bar */}
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-white/5">
+                  <div 
+                    className="h-full rounded-full transition-all duration-75"
+                    style={{
+                      width: `${audioLevel}%`,
+                      background: audioLevel > 85 
+                        ? 'linear-gradient(to right, #10b981, #f59e0b, #ef4444)' 
+                        : audioLevel > 60 
+                          ? 'linear-gradient(to right, #10b981, #f59e0b)' 
+                          : '#10b981'
+                    }}
+                  />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* ══ EXPANDABLE SETTINGS (RESPONSIVE SINGLE/DUAL COLUMN) ══ */}
+              {showSettings && (
+                <div className="p-4 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-4 shadow-xl text-white">
                   
-                  {/* Left Column: Mic Device & Gain */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                        Chọn Cổng Thu Âm (Microphone Input):
-                      </label>
-                      <select
-                        value={selectedAudioDevice}
-                        onChange={(e) => handleDeviceChange(e.target.value)}
-                        className="w-full bg-slate-900 border border-white/20 rounded-xl p-2.5 text-xs text-slate-200 outline-none focus:border-amber-400"
-                      >
-                        {audioDevices.length > 0 ? (
-                          audioDevices.map(d => (
-                            <option key={d.deviceId} value={d.deviceId}>
-                              {d.label || `Microphone (${d.deviceId.slice(0, 8)}...)`}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="">Microphone Mặc Định Trình Duyệt</option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
-                        <span>Độ Nhạy / Âm Lượng Mic (Mic Gain):</span>
-                        <span className="text-amber-400 font-mono font-bold">{micVolume}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={200}
-                        value={micVolume}
-                        onChange={(e) => setMicVolume(Number(e.target.value))}
-                        className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                      />
-                    </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5" /> Thiết Lập Âm Thanh & Metronome
+                    </h4>
+                    <button 
+                      onClick={() => setShowSettings(false)}
+                      className="text-xs text-slate-400 hover:text-white font-bold p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  {/* Right Column: Metronome Overlay & Tempo Options */}
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
-                        <input
-                          type="checkbox"
-                          checked={embedMetronome}
-                          onChange={(e) => setEmbedMetronome(e.target.checked)}
-                          className="w-4 h-4 rounded text-amber-500 focus:ring-0"
-                        />
-                        <span className="flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                          Nhúng Bảng Metronome Trực Tiếp Vào Video (HUD)
-                        </span>
-                      </label>
+                  {/* Responsive Grid: Stacks cleanly on mobile, 2 cols on desktop */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    {/* Left Column: Mic Device & Gain */}
+                    <div className="space-y-3 bg-slate-900/60 p-3 rounded-xl border border-white/5">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                          Cổng Thu Âm (Microphone):
+                        </label>
+                        <select
+                          value={selectedAudioDevice}
+                          onChange={(e) => handleDeviceChange(e.target.value)}
+                          className="w-full bg-slate-900 border border-white/20 rounded-xl p-2 text-xs text-slate-200 outline-none focus:border-amber-400 truncate"
+                        >
+                          {audioDevices.length > 0 ? (
+                            audioDevices.map(d => (
+                              <option key={d.deviceId} value={d.deviceId}>
+                                {d.label || `Microphone (${d.deviceId.slice(0, 8)}...)`}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="">Microphone Mặc Định Trình Duyệt</option>
+                          )}
+                        </select>
+                      </div>
 
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
+                          <span>Độ Nhạy Mic (Gain):</span>
+                          <span className="text-amber-400 font-mono font-bold">{micVolume}%</span>
+                        </div>
                         <input
-                          type="checkbox"
-                          checked={playMetronomeAudio}
-                          onChange={(e) => setPlayMetronomeAudio(e.target.checked)}
-                          className="w-4 h-4 rounded text-amber-500 focus:ring-0"
+                          type="range"
+                          min={0}
+                          max={200}
+                          value={micVolume}
+                          onChange={(e) => setMicVolume(Number(e.target.value))}
+                          className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
                         />
-                        <span>Gõ tiếng Metronome khi bấm quay video</span>
-                      </label>
+                      </div>
                     </div>
 
-                    {/* Metronome BPM and Signature Adjuster */}
-                    <div className="p-3 bg-slate-900 rounded-xl border border-white/10 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-300">Tốc Độ Nhịp Khi Quay:</span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => setMetronomeBpm(b => Math.max(40, b - 5))}
-                            className="px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold text-white"
-                          >
-                            -5
-                          </button>
-                          <span className="font-mono font-black text-amber-400 text-xs px-1.5">{metronomeBpm} BPM</span>
-                          <button
-                            onClick={() => setMetronomeBpm(b => Math.min(220, b + 5))}
-                            className="px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold text-white"
-                          >
-                            +5
-                          </button>
+                    {/* Right Column: Metronome Overlay & Tempo Controls */}
+                    <div className="space-y-3 bg-slate-900/60 p-3 rounded-xl border border-white/5">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={embedMetronome}
+                            onChange={(e) => setEmbedMetronome(e.target.checked)}
+                            className="w-4 h-4 rounded text-amber-500 focus:ring-0"
+                          />
+                          <span className="flex items-center gap-1 text-[11px] sm:text-xs">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            Nhúng bảng Metronome vào Video
+                          </span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={playMetronomeAudio}
+                            onChange={(e) => setPlayMetronomeAudio(e.target.checked)}
+                            className="w-4 h-4 rounded text-amber-500 focus:ring-0"
+                          />
+                          <span className="text-[11px] sm:text-xs">Gõ tiếng Metronome khi quay</span>
+                        </label>
+                      </div>
+
+                      {/* Metronome Tempo & Time Signature Selector */}
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-white/10 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <span className="text-[11px] font-bold text-slate-300">Tốc Độ:</span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm(b => Math.max(40, b - 5))}
+                              className="px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold text-white"
+                            >
+                              -5
+                            </button>
+                            <span className="font-mono font-black text-amber-400 text-xs px-1">{metronomeBpm} BPM</span>
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm(b => Math.min(220, b + 5))}
+                              className="px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold text-white"
+                            >
+                              +5
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-white/5 flex-wrap">
+                          <span className="text-[10px] font-bold text-slate-400">Nhịp:</span>
+                          {[2, 3, 4, 6].map(ts => (
+                            <button
+                              key={ts}
+                              type="button"
+                              onClick={() => setMetronomeTimeSig(ts)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                metronomeTimeSig === ts
+                                  ? 'bg-amber-400 text-slate-950 font-black'
+                                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                              }`}
+                            >
+                              {ts}/4
+                            </button>
+                          ))}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <span className="text-[10px] font-bold text-slate-400">Nhịp:</span>
-                        {[2, 3, 4, 6].map(ts => (
-                          <button
-                            key={ts}
-                            onClick={() => setMetronomeTimeSig(ts)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                              metronomeTimeSig === ts
-                                ? 'bg-amber-400 text-slate-950 font-black'
-                                : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                            }`}
-                          >
-                            {ts}/4
-                          </button>
-                        ))}
-                      </div>
                     </div>
 
                   </div>
 
                 </div>
+              )}
 
-              </div>
-            )}
+            </div>
+          )}
 
-          </div>
-        )}
-
-      </div>
+        </div>
+      </>
     );
   }
 
@@ -969,7 +1020,7 @@ export const WebcamRecorder: React.FC<Props> = ({
   if (status === 'REVIEW') {
     return (
       <div className="w-full bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200">
-        <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
           <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
             <Check className="w-4 h-4 text-emerald-600" /> Xem Lại Video Đoạn Đàn
           </h3>
@@ -982,7 +1033,7 @@ export const WebcamRecorder: React.FC<Props> = ({
           <video src={videoUrl!} controls className="w-full h-full object-cover" />
         </div>
         
-        <div className="p-4 sm:p-5 flex gap-3 bg-slate-50 border-t border-slate-200">
+        <div className="p-3.5 sm:p-5 flex gap-3 bg-slate-50 border-t border-slate-200 flex-col sm:flex-row">
           <button 
             onClick={() => {
               setVideoBlob(null);
@@ -990,7 +1041,7 @@ export const WebcamRecorder: React.FC<Props> = ({
               startCamera();
             }} 
             disabled={uploading}
-            className="flex-1 py-3.5 px-4 bg-white text-slate-700 border border-slate-300 rounded-2xl font-bold text-xs hover:bg-slate-100 transition-all flex justify-center items-center gap-2 disabled:opacity-50 shadow-xs"
+            className="flex-1 py-3 px-4 bg-white text-slate-700 border border-slate-300 rounded-2xl font-bold text-xs hover:bg-slate-100 transition-all flex justify-center items-center gap-2 disabled:opacity-50 shadow-xs"
           >
             <RefreshCcw className="w-4 h-4" /> Quay Lại
           </button>
@@ -998,7 +1049,7 @@ export const WebcamRecorder: React.FC<Props> = ({
           <button 
             onClick={submitVideo}
             disabled={uploading}
-            className="flex-[2] py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl font-extrabold text-xs uppercase tracking-wider hover:from-emerald-700 hover:to-teal-700 transition-all flex justify-center items-center gap-2 shadow-lg shadow-emerald-900/20 disabled:opacity-50 active:scale-95"
+            className="flex-[2] py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl font-extrabold text-xs uppercase tracking-wider hover:from-emerald-700 hover:to-teal-700 transition-all flex justify-center items-center gap-2 shadow-lg shadow-emerald-900/20 disabled:opacity-50 active:scale-95"
           >
             {uploading ? (
               <span className="animate-pulse">Đang tải lên Cloudinary & Lưu kết quả...</span>
