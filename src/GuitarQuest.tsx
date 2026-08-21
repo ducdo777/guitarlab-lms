@@ -81,7 +81,7 @@ export default function GuitarQuest({ user }: Props) {
               setActiveCourseId(enrolledCoursesList[0].id);
             }
           } else {
-            setAvailableCourses([{ id: 'guitar-8-buoi', title: 'Khoá Học Guitar Đệm Hát 8 Buổi', total_sessions: 8 }]);
+            setAvailableCourses([{ id: 'guitar-8-buoi', title: 'Khoá Học Guitar Đệm Hát 8 Bài', total_sessions: 8 }]);
             setActiveCourseId('guitar-8-buoi');
           }
         } catch (cErr) {
@@ -112,8 +112,8 @@ export default function GuitarQuest({ user }: Props) {
             const dbExercises = dbItem?.exercises 
               ? (typeof dbItem.exercises === 'string' ? JSON.parse(dbItem.exercises) : dbItem.exercises)
               : [
-                  { id: 1, text: `Thực hành gảy nhịp cho Buổi ${sessNum}`, done: isDone },
-                  { id: 2, text: `Quay video đoạn đàn thực hành Buổi ${sessNum} gửi thầy`, done: isDone }
+                  { id: 1, text: `Thực hành gảy nhịp cho Bài ${sessNum}`, done: isDone },
+                  { id: 2, text: `Quay video đoạn đàn thực hành Bài ${sessNum} gửi thầy`, done: isDone }
                 ];
 
             const dbPractice = dbItem?.practice 
@@ -122,13 +122,13 @@ export default function GuitarQuest({ user }: Props) {
                   ? [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: dbItem.youtube_video_id }]
                   : [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: 'dQw4w9WgXcQ' }]);
 
-            const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
+            const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Bài ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
             const dbTheory = [{ heading: 'Nội dung bài học', body: theoryText }];
 
             return {
               id: Number(dbItem.id),
-              title: dbItem.title || `Buổi ${sessNum}: Bài thực hành ${sessNum}`,
-              subtitle: dbItem.subtitle || `Nội dung hướng dẫn chi tiết cho buổi học thứ ${sessNum}`,
+              title: dbItem.title || `Bài ${sessNum}: Bài thực hành ${sessNum}`,
+              subtitle: dbItem.subtitle || `Nội dung hướng dẫn chi tiết cho bài học thứ ${sessNum}`,
               icon: dbItem.icon || '🎸',
               xp: 100,
               color: 'amber',
@@ -142,7 +142,7 @@ export default function GuitarQuest({ user }: Props) {
                 youtubeVideoId: dbPractice[0]?.youtubeId || dbItem.youtube_video_id || 'dQw4w9WgXcQ',
                 chords: {
                   symbols: dbChords,
-                  title: 'Các Hợp Âm Thực Hành Buổi Này'
+                  title: 'Các Hợp Âm Thực Hành Bài Này'
                 },
                 exercises: dbExercises
               }
@@ -311,7 +311,7 @@ export default function GuitarQuest({ user }: Props) {
                 >
                   {availableCourses.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.title} ({c.total_sessions || 8} Buổi)
+                      {c.title} ({c.total_sessions || 8} Bài)
                     </option>
                   ))}
                 </select>
@@ -332,7 +332,7 @@ export default function GuitarQuest({ user }: Props) {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              🗺️ Lộ Trình 8 Buổi
+              🗺️ Lộ Trình {sessions.length || 8} Bài Học
             </button>
             <button
               onClick={() => {
@@ -362,7 +362,7 @@ export default function GuitarQuest({ user }: Props) {
                 <span className="text-xs font-bold text-slate-800 leading-none">
                   {user?.user_metadata?.full_name || user?.email || 'Học Viên Guitar'}
                 </span>
-                <span className="text-[10px] text-slate-500 font-medium">Học Viên Khóa 8 Buổi</span>
+                <span className="text-[10px] text-slate-500 font-medium">Học Viên GuitarLab</span>
               </div>
             </div>
 
@@ -412,12 +412,12 @@ export default function GuitarQuest({ user }: Props) {
                 onClick={() => setSelectedSession(null)}
                 className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-[#1b2a47] bg-slate-100 hover:bg-slate-200/70 px-4 py-2.5 rounded-xl transition-all self-start"
               >
-                <ArrowLeft className="w-4 h-4" /> Quay Lại Danh Sách Buổi Học
+                <ArrowLeft className="w-4 h-4" /> Quay Lại Danh Sách Bài Học
               </button>
 
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80">
-                  Buổi {selectedSession.id} / 8
+                  Bài {selectedSession.id} / {sessions.length || 8}
                 </span>
                 {selectedSession.completed ? (
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -443,7 +443,7 @@ export default function GuitarQuest({ user }: Props) {
                   </span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
-                  Buổi {selectedSession.id}: {selectedSession.title}
+                  Bài {selectedSession.id}: {selectedSession.title}
                 </h1>
                 <p className="text-slate-300 font-medium text-base max-w-2xl">
                   {selectedSession.subtitle}
@@ -466,7 +466,7 @@ export default function GuitarQuest({ user }: Props) {
                       </div>
                       <div>
                         <h2 className="text-lg font-black text-[#1b2a47]">Nội Dung Hướng Dẫn Chi Tiết</h2>
-                        <p className="text-xs text-amber-800 font-bold">Kiến thức và lộ trình học của Buổi {selectedSession.id}</p>
+                        <p className="text-xs text-amber-800 font-bold">Kiến thức và lộ trình học của Bài {selectedSession.id}</p>
                       </div>
                     </div>
                     <p className="text-sm text-slate-700 leading-relaxed font-medium pt-2 whitespace-pre-line">
@@ -531,7 +531,7 @@ export default function GuitarQuest({ user }: Props) {
                       <BookOpen className="w-6 h-6" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-extrabold text-slate-900">Lý Thuyết & Hợp Âm Buổi {selectedSession.id}</h2>
+                      <h2 className="text-lg font-extrabold text-slate-900">Lý Thuyết & Hợp Âm Bài {selectedSession.id}</h2>
                       <p className="text-xs text-slate-500">Kiến thức nền tảng và cách bấm thế tay</p>
                     </div>
                   </div>
@@ -636,12 +636,12 @@ export default function GuitarQuest({ user }: Props) {
                         className="w-full bg-[#1b2a47] hover:bg-[#121f36] text-white font-extrabold py-4 px-6 rounded-2xl shadow-lg shadow-blue-950/20 transition-all flex items-center justify-center gap-2"
                       >
                         <Sparkles className="w-5 h-5 text-amber-400" />
-                        Xác Nhận Hoàn Thành Buổi {selectedSession.id}
+                        Xác Nhận Hoàn Thành Bài {selectedSession.id}
                       </button>
                     ) : (
                       <div className="w-full bg-emerald-50 text-emerald-700 font-bold p-4 rounded-2xl text-center border border-emerald-200 flex items-center justify-center gap-2">
                         <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        Bạn Đã Hoàn Thành Buổi Học Này!
+                        Bạn Đã Hoàn Thành Bài Học Này!
                       </div>
                     )}
                   </div>
@@ -770,7 +770,7 @@ export default function GuitarQuest({ user }: Props) {
                 </div>
                 <h3 className="font-extrabold text-xl text-slate-800">Bạn Chưa Nộp Bài Video Thực Hành Nào</h3>
                 <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                  Hãy mở bất kỳ buổi học nào trong Lộ trình 8 Buổi, quay đoạn video bấm phím thực hành và gửi cho Giảng viên nhé!
+                  Hãy mở bất kỳ bài học nào trong Lộ trình học tập, quay đoạn video bấm phím thực hành và gửi cho Giảng viên nhé!
                 </p>
                 <button
                   onClick={() => setMainTab('roadmap')}
@@ -811,10 +811,10 @@ export default function GuitarQuest({ user }: Props) {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                              Buổi {sub.session_id || 1} / 8
+                              Bài {sub.session_id || 1} / {sessions.length || 8}
                             </span>
                             <h3 className="font-black text-lg text-[#1b2a47]">
-                              {sessInfo?.title || `Buổi học ${sub.session_id || 1}`}
+                              {sessInfo?.title || `Bài học ${sub.session_id || 1}`}
                             </h3>
                           </div>
                           <p className="text-xs text-slate-400 mt-1 font-mono">📅 Ngày nộp bài: {subDateDisplay}</p>
@@ -894,7 +894,7 @@ export default function GuitarQuest({ user }: Props) {
                           }}
                           className="text-xs font-bold text-[#1b2a47] hover:text-amber-600 bg-slate-100 hover:bg-amber-50 px-4 py-2 rounded-xl transition-all border border-slate-200"
                         >
-                          Vào Học Lại Buổi {sub.session_id || 1} ➔
+                          Vào Học Lại Bài {sub.session_id || 1} ➔
                         </button>
                       </div>
 
@@ -906,14 +906,14 @@ export default function GuitarQuest({ user }: Props) {
           </div>
         ) : (
           /* -------------------------------------------------------------
-              VIEW 3: COURSE DASHBOARD (ALL 8 SESSIONS ROADMAP)
+              VIEW 3: COURSE DASHBOARD (ALL SESSIONS ROADMAP)
              ------------------------------------------------------------- */
           <div className="space-y-10 animate-fadeIn">
             
             {/* Banner Tiến Độ Tổng Quan */}
             {(() => {
               const activeCourseObj = availableCourses.find(c => c.id === activeCourseId) || {
-                title: 'Khoá Học Guitar Đệm Hát 8 Buổi',
+                title: 'Khoá Học Guitar Đệm Hát 8 Bài',
                 subtitle: 'Lộ trình chuẩn hóa từ Zero đến đệm hát thuần thục bài hát yêu thích',
                 total_sessions: 8
               };
@@ -925,13 +925,13 @@ export default function GuitarQuest({ user }: Props) {
                   <div className="space-y-3 max-w-xl text-center md:text-left z-10">
                     <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-300 text-xs font-bold px-3.5 py-1.5 rounded-full border border-amber-400/30">
                       <Sparkles className="w-3.5 h-3.5" />
-                      {activeCourseObj.title} ({sessions.length || activeCourseObj.total_sessions || 8} Buổi)
+                      {activeCourseObj.title} ({sessions.length || activeCourseObj.total_sessions || 8} Bài)
                     </div>
                     <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
                       Chào mừng trở lại lớp học!
                     </h1>
                     <p className="text-slate-300 text-sm leading-relaxed">
-                      {activeCourseObj.subtitle || 'Lộ trình huấn luyện guitar thực hành chuyên sâu theo từng buổi học.'}
+                      {activeCourseObj.subtitle || 'Lộ trình huấn luyện guitar thực hành chuyên sâu theo từng bài học.'}
                     </p>
 
                     {/* Mobile Course Switcher Selector */}
@@ -948,7 +948,7 @@ export default function GuitarQuest({ user }: Props) {
                         >
                           {availableCourses.map(c => (
                             <option key={c.id} value={c.id} className="text-slate-900">
-                              {c.title} ({c.total_sessions} Buổi)
+                              {c.title} ({c.total_sessions} Bài)
                             </option>
                           ))}
                         </select>
@@ -971,7 +971,7 @@ export default function GuitarQuest({ user }: Props) {
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-slate-300 font-semibold pt-1">
-                      <span>Đã học: {completedCount} / {sessions.length || activeCourseObj.total_sessions || 8} Buổi</span>
+                      <span>Đã học: {completedCount} / {sessions.length || activeCourseObj.total_sessions || 8} Bài</span>
                       <span>{completedCount === (sessions.length || activeCourseObj.total_sessions || 8) ? 'Hoàn Thành! 🎉' : 'Đang Học 🎯'}</span>
                     </div>
                   </div>
@@ -1016,11 +1016,11 @@ export default function GuitarQuest({ user }: Props) {
               </div>
 
               <span className="text-xs text-slate-500 font-medium">
-                Bấm vào từng buổi học bên dưới để vào bài học chi tiết
+                Bấm vào từng bài học bên dưới để vào bài học chi tiết
               </span>
             </div>
 
-            {/* 8 Sessions Grid */}
+            {/* Sessions Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {filteredSessions.map((session) => (
                 <div 
@@ -1046,7 +1046,7 @@ export default function GuitarQuest({ user }: Props) {
                       </span>
                     ) : session.unlocked ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                        Buổi {session.id}
+                        Bài {session.id}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
@@ -1058,7 +1058,7 @@ export default function GuitarQuest({ user }: Props) {
                   {/* Title & Subtitle */}
                   <div className="space-y-2 mb-6">
                     <h3 className="font-extrabold text-base text-slate-900 group-hover:text-[#1b2a47] transition-colors line-clamp-1">
-                      Buổi {session.id}: {session.title}
+                      Bài {session.id}: {session.title}
                     </h3>
                     <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                       {session.subtitle}

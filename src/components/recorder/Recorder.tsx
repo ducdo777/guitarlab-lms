@@ -79,7 +79,7 @@ export const Recorder: React.FC<RecorderProps> = ({ isRecording, setIsRecording 
           <Disc className="w-5 h-5 animate-spin" />
         </div>
         <div>
-          <h3 className="text-sm font-bold text-white">Ghi Âm Buổi Học Trực Tiếp</h3>
+          <h3 className="text-sm font-bold text-white">Ghi Âm Bài Học Trực Tiếp</h3>
           <p className="text-xs font-mono text-rose-400">
             {isRecording ? `Đang ghi âm... ${formatTime(recordSeconds)}` : 'Đã dừng ghi âm'}
           </p>

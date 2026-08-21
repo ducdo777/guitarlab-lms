@@ -29,7 +29,7 @@ export interface Session {
 const DEFAULT_SESSIONS: Session[] = [
   {
     id: 1, icon: '🎸', xp: 100, color: '#34c759',
-    title: 'Buổi 1', subtitle: 'Làm Quen Đàn Guitar',
+    title: 'Bài 1', subtitle: 'Làm Quen Đàn Guitar',
     x: 25, y: 80, unlocked: true, completed: false,
     content: {
       theory: [
@@ -67,7 +67,7 @@ const DEFAULT_SESSIONS: Session[] = [
   },
   {
     id: 2, icon: '✋', xp: 150, color: '#007AFF',
-    title: 'Buổi 2', subtitle: 'Hợp Âm Em & Am',
+    title: 'Bài 2', subtitle: 'Hợp Âm Em & Am',
     x: 75, y: 65, unlocked: false, completed: false,
     content: {
       theory: [
@@ -106,7 +106,7 @@ const DEFAULT_SESSIONS: Session[] = [
   },
   {
     id: 3, icon: '🎵', xp: 200, color: '#FF9F0A',
-    title: 'Buổi 3', subtitle: 'Hợp Âm G, C, D',
+    title: 'Bài 3', subtitle: 'Hợp Âm G, C, D',
     x: 30, y: 53, unlocked: false, completed: false,
     content: {
       theory: [
@@ -149,7 +149,7 @@ const DEFAULT_SESSIONS: Session[] = [
   },
   {
     id: 4, icon: '🥁', xp: 250, color: '#FF375F',
-    title: 'Buổi 4', subtitle: 'Kỹ Thuật Quạt Dây',
+    title: 'Bài 4', subtitle: 'Kỹ Thuật Quạt Dây',
     x: 75, y: 42, unlocked: false, completed: false,
     content: {
       theory: [
@@ -187,7 +187,7 @@ const DEFAULT_SESSIONS: Session[] = [
   },
   {
     id: 5, icon: '🔄', xp: 300, color: '#5856D6',
-    title: 'Buổi 5', subtitle: 'Chuyển Hợp Âm Mượt Mà',
+    title: 'Bài 5', subtitle: 'Chuyển Hợp Âm Mượt Mà',
     x: 25, y: 28, unlocked: false, completed: false,
     content: {
       theory: [
@@ -228,7 +228,7 @@ const DEFAULT_SESSIONS: Session[] = [
   },
   {
     id: 6, icon: '🎶', xp: 350, color: '#FF6B00',
-    title: 'Buổi 6', subtitle: 'Fingerpicking Cơ Bản',
+    title: 'Bài 6', subtitle: 'Fingerpicking Cơ Bản',
     x: 50, y: 25, unlocked: false, completed: false,
     content: {
       theory: [
@@ -266,7 +266,7 @@ const DEFAULT_SESSIONS: Session[] = [
   },
   {
     id: 7, icon: '⚡', xp: 450, color: '#FF2D55',
-    title: 'Buổi 7', subtitle: 'Barre Chord F & Bm',
+    title: 'Bài 7', subtitle: 'Barre Chord F & Bm',
     x: 65, y: 18, unlocked: false, completed: false,
     content: {
       theory: [
@@ -305,7 +305,7 @@ const DEFAULT_SESSIONS: Session[] = [
   },
   {
     id: 8, icon: '🌟', xp: 500, color: '#BF5AF2',
-    title: 'Buổi 8', subtitle: 'Gam Pentatonic & Solo',
+    title: 'Bài 8', subtitle: 'Gam Pentatonic & Solo',
     x: 65, y: 10, unlocked: false, completed: false,
     content: {
       theory: [

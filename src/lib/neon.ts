@@ -107,7 +107,7 @@ export async function initNeonSchema() {
     if (Number(sessionCount[0]?.count || 0) === 0) {
       await sql`
         INSERT INTO courses (id, title, subtitle, description, total_sessions)
-        VALUES ('guitar-8-buoi', 'Khoá Học Guitar Đệm Hát 8 Buổi', 'Lộ trình chuẩn hóa từ Zero đến đệm hát thuần thục bài hát yêu thích', 'Dành riêng cho người mới bắt đầu học đàn guitar acoustic', 8)
+        VALUES ('guitar-8-buoi', 'Khoá Học Guitar Đệm Hát 8 Bài', 'Lộ trình chuẩn hóa từ Zero đến đệm hát thuần thục bài hát yêu thích', 'Dành riêng cho người mới bắt đầu học đàn guitar acoustic', 8)
         ON CONFLICT (id) DO NOTHING;
       `;
       await sql`

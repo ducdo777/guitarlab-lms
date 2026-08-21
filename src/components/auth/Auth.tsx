@@ -96,7 +96,7 @@ export const Auth: React.FC<AuthProps> = ({ mode = 'student' }) => {
           VALUES (${userId}, ${displayName}, ${cleanEmail}, ${cleanPassword})
         `;
 
-        // Tự động phân học viên mới vào lớp mặc định: "Khoá Học Guitar Đệm Hát 8 Buổi"
+        // Tự động phân học viên mới vào lớp mặc định: "Khoá Học Guitar Đệm Hát 8 Bài"
         const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
         const autoEnrollId = `enroll_${cleanEmailKey}_guitar_8_buoi`;
         try {

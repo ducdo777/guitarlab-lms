@@ -229,7 +229,7 @@ export default function AdminPage() {
         const sessId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000) + i;
         await sql`
           INSERT INTO sessions (id, course_id, title, subtitle, icon, order_index)
-          VALUES (${sessId}, ${cleanCourseId}, ${`Buổi ${i}: Bài thực hành ${i}`}, ${`Nội dung hướng dẫn cho buổi học thứ ${i}`}, '🎸', ${i})
+          VALUES (${sessId}, ${cleanCourseId}, ${`Bài ${i}: Bài thực hành ${i}`}, ${`Nội dung hướng dẫn cho bài học thứ ${i}`}, '🎸', ${i})
           ON CONFLICT (id) DO NOTHING
         `;
       }
@@ -240,7 +240,7 @@ export default function AdminPage() {
       setNewCourseTitle('');
       setNewCourseSubtitle('');
       setNewCourseSessions(8);
-      showToast(`Đã tạo khóa học mới "${newCourseTitle}" với ${newCourseSessions} buổi!`);
+      showToast(`Đã tạo khóa học mới "${newCourseTitle}" với ${newCourseSessions} bài!`);
     } catch (err: any) {
       console.error('Create course error:', err);
       alert('Lỗi tạo khóa học: ' + err.message);
@@ -353,7 +353,7 @@ export default function AdminPage() {
             const sessId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 10000) + i;
             await sql`
               INSERT INTO sessions (id, course_id, title, subtitle, icon, order_index)
-              VALUES (${sessId}, ${courseId}, ${`Buổi ${i}: Bài thực hành ${i}`}, ${`Nội dung hướng dẫn chi tiết cho buổi học thứ ${i}`}, '🎸', ${i})
+              VALUES (${sessId}, ${courseId}, ${`Bài ${i}: Bài thực hành ${i}`}, ${`Nội dung hướng dẫn chi tiết cho bài học thứ ${i}`}, '🎸', ${i})
               ON CONFLICT (id) DO NOTHING
             `;
           }
@@ -378,8 +378,8 @@ export default function AdminPage() {
           const dbExercises = dbItem?.exercises 
             ? (typeof dbItem.exercises === 'string' ? JSON.parse(dbItem.exercises) : dbItem.exercises)
             : [
-                { id: 1, text: `Thực hành gảy nhịp cho Buổi ${sessNum}`, done: false },
-                { id: 2, text: `Quay video đoạn đàn thực hành Buổi ${sessNum} gửi thầy`, done: false }
+                { id: 1, text: `Thực hành gảy nhịp cho Bài ${sessNum}`, done: false },
+                { id: 2, text: `Quay video đoạn đàn thực hành Bài ${sessNum} gửi thầy`, done: false }
               ];
 
           const dbPractice = dbItem?.practice 
@@ -388,13 +388,13 @@ export default function AdminPage() {
                 ? [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: dbItem.youtube_video_id }]
                 : [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: 'dQw4w9WgXcQ' }]);
 
-          const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
+          const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Bài ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
           const dbTheory = [{ heading: 'Nội dung bài học', body: theoryText }];
 
           return {
             id: Number(dbItem.id),
-            title: dbItem.title || `Buổi ${sessNum}: Bài thực hành ${sessNum}`,
-            subtitle: dbItem.subtitle || `Nội dung hướng dẫn chi tiết cho buổi học thứ ${sessNum}`,
+            title: dbItem.title || `Bài ${sessNum}: Bài thực hành ${sessNum}`,
+            subtitle: dbItem.subtitle || `Nội dung hướng dẫn chi tiết cho bài học thứ ${sessNum}`,
             icon: dbItem.icon || '🎸',
             xp: 100,
             color: 'amber',
@@ -408,7 +408,7 @@ export default function AdminPage() {
               youtubeVideoId: dbPractice[0]?.youtubeId || dbItem.youtube_video_id || 'dQw4w9WgXcQ',
               chords: {
                 symbols: dbChords,
-                title: 'Các Hợp Âm Thực Hành Buổi Này'
+                title: 'Các Hợp Âm Thực Hành Bài Này'
               },
               exercises: dbExercises
             }
@@ -427,8 +427,8 @@ export default function AdminPage() {
   const handleAddSession = async () => {
     const nextOrderIndex = sessions.length + 1;
     const newSessId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 10000);
-    const newTitle = `Buổi ${nextOrderIndex}: Bài thực hành nâng cao ${nextOrderIndex}`;
-    const newSubtitle = `Nội dung hướng dẫn chi tiết cho buổi học thứ ${nextOrderIndex}`;
+    const newTitle = `Bài ${nextOrderIndex}: Bài thực hành nâng cao ${nextOrderIndex}`;
+    const newSubtitle = `Nội dung hướng dẫn chi tiết cho bài học thứ ${nextOrderIndex}`;
 
     try {
       await sql`
@@ -445,16 +445,16 @@ export default function AdminPage() {
       await fetchSessionsForCourse(editorCourseId);
       await fetchCoursesAndEnrollments();
       setActiveEditorId(newSessId);
-      showToast(`Đã thêm Buổi ${nextOrderIndex} vào khóa học thành công!`);
+      showToast(`Đã thêm Bài ${nextOrderIndex} vào khóa học thành công!`);
     } catch (err: any) {
       console.error('Add session error:', err);
-      alert('Lỗi thêm buổi học: ' + err.message);
+      alert('Lỗi thêm bài học: ' + err.message);
     }
   };
 
   const handleDeleteSessionInCourse = async (sessId: number, sessTitle: string) => {
     if (sessions.length <= 1) {
-      alert('Khóa học phải giữ ít nhất 1 buổi học!');
+      alert('Khóa học phải giữ ít nhất 1 bài học!');
       return;
     }
 
@@ -471,10 +471,10 @@ export default function AdminPage() {
 
       await fetchSessionsForCourse(editorCourseId);
       await fetchCoursesAndEnrollments();
-      showToast(`Đã xóa buổi học khỏi khóa ${editorCourseId}`);
+      showToast(`Đã xóa bài học khỏi khóa ${editorCourseId}`);
     } catch (err: any) {
       console.error('Delete session error:', err);
-      alert('Lỗi xóa buổi học!');
+      alert('Lỗi xóa bài học!');
     }
   };
 
@@ -700,7 +700,7 @@ export default function AdminPage() {
             </div>
             <div>
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Chương Trình</span>
-              <span className="text-2xl font-black text-[#1b2a47]">{coursesList.reduce((sum, c) => sum + c.total_sessions, 0) || 8} Buổi Học</span>
+              <span className="text-2xl font-black text-[#1b2a47]">{coursesList.reduce((sum, c) => sum + c.total_sessions, 0) || 8} Bài Học</span>
             </div>
           </div>
 
@@ -798,7 +798,7 @@ export default function AdminPage() {
                     </div>
 
                     <div className="text-xs text-slate-600 flex items-center justify-between">
-                      <span>Buổi {sub.session_id}</span>
+                      <span>Bài {sub.session_id}</span>
                       <span className="text-slate-400">{sub.created_at}</span>
                     </div>
                   </div>
@@ -814,7 +814,7 @@ export default function AdminPage() {
                 <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
                   <div>
                     <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
-                      Đang Xem Bài Nộp Buổi {selectedSub.session_id}
+                      Đang Xem Bài Nộp Bài {selectedSub.session_id}
                     </span>
                     <h2 className="text-xl font-black text-[#1b2a47]">{selectedSub.student_name}</h2>
                     <span className="text-xs text-slate-500">{selectedSub.student_email}</span>
@@ -848,30 +848,30 @@ export default function AdminPage() {
                 <div className="space-y-4 pt-4 border-t border-slate-100">
                   <h3 className="font-black text-sm text-[#1b2a47] flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-amber-500" />
-                    Chấm Điểm & Gửi Nhận Xét 1:1
+                    Đánh Giá & Chấm Điểm Bài Tập:
                   </h3>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-2">Điểm Số (1 - 10):</label>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Cho Điểm (Thang 10):</label>
                       <input
                         type="number"
-                        min={1}
-                        max={10}
+                        min="1"
+                        max="10"
                         value={gradeInput}
                         onChange={e => setGradeInput(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 font-bold text-slate-900 outline-none focus:border-[#1b2a47]"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-black text-amber-600 focus:border-[#1b2a47] outline-none"
                       />
                     </div>
 
-                    <div className="sm:col-span-3">
-                      <label className="text-xs font-bold text-slate-700 block mb-2">Nhận Xét Chi Tiết Cho Học Viên:</label>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Lời Nhận Xét & Hướng Dẫn Sửa Lỗi:</label>
                       <textarea
-                        rows={3}
+                        rows={2}
                         value={feedbackInput}
                         onChange={e => setFeedbackInput(e.target.value)}
-                        placeholder="Nhập góp ý tư thế bấm đàn, nhịp điệu, các điểm cần cải thiện..."
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 outline-none focus:border-[#1b2a47]"
+                        placeholder="Nhập nhận xét chi tiết về nhịp điệu, ngón tay, tư thế gảy..."
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-800 focus:border-[#1b2a47] outline-none"
                       />
                     </div>
                   </div>
@@ -904,8 +904,8 @@ export default function AdminPage() {
             {/* Header & Search */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
-                <h2 className="font-black text-[#1b2a47] text-xl">Danh Sách Học Viên & Tiến Độ Học Tập 8 Buổi</h2>
-                <p className="text-xs text-slate-500">Theo dõi quá trình học, bài nộp và số buổi đã hoàn thành của từng học viên</p>
+                <h2 className="font-black text-[#1b2a47] text-xl">Danh Sách Học Viên & Tiến Độ Học Tập</h2>
+                <p className="text-xs text-slate-500">Theo dõi quá trình học, bài nộp và số bài đã hoàn thành của từng học viên</p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -923,7 +923,7 @@ export default function AdminPage() {
                     <th className="p-4">Học Viên</th>
                     <th className="p-4">Email Liên Hệ</th>
                     <th className="p-4">Tiến Độ Tổng Quan</th>
-                    <th className="p-4">Ma Trận 8 Buổi Học</th>
+                    <th className="p-4">Ma Trận Bài Học</th>
                     <th className="p-4 text-right">Chi Tiết Hồ Sơ</th>
                   </tr>
                 </thead>
@@ -956,7 +956,7 @@ export default function AdminPage() {
                             <div className="space-y-1.5 w-36">
                               <div className="flex justify-between text-[11px]">
                                 <span className="font-bold text-slate-700">{percent}%</span>
-                                <span className="text-slate-500 font-bold">{st.completed_count}/8 Buổi</span>
+                                <span className="text-slate-500 font-bold">{st.completed_count}/8 Bài</span>
                               </div>
                               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                                 <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${percent}%` }}></div>
@@ -1032,7 +1032,7 @@ export default function AdminPage() {
                 >
                   {coursesList.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.title} ({c.total_sessions} Buổi)
+                      {c.title} ({c.total_sessions} Bài)
                     </option>
                   ))}
                 </select>
@@ -1044,7 +1044,7 @@ export default function AdminPage() {
             {/* Sessions Selector Sidebar */}
             <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-2">
               <div className="flex items-center justify-between px-2 mb-2">
-                <h3 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Buổi Học ({sessions.length}):</h3>
+                <h3 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Bài Học ({sessions.length}):</h3>
               </div>
 
               <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
@@ -1058,7 +1058,7 @@ export default function AdminPage() {
                         : 'hover:bg-slate-100 text-slate-700'
                     }`}
                   >
-                    <span>{s.icon || '🎸'} Buổi {idx + 1}: {s.title}</span>
+                    <span>{s.icon || '🎸'} Bài {idx + 1}: {s.title}</span>
                     <ChevronRight className="w-4 h-4 opacity-50" />
                   </button>
                 ))}
@@ -1069,7 +1069,7 @@ export default function AdminPage() {
                 onClick={handleAddSession}
                 className="w-full mt-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-extrabold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
               >
-                <Plus className="w-4 h-4 text-amber-600" /> Thêm Buổi Học Mới
+                <Plus className="w-4 h-4 text-amber-600" /> Thêm Bài Học Mới
               </button>
 
               <div className="pt-3 border-t border-slate-100 mt-3">
@@ -1095,7 +1095,7 @@ export default function AdminPage() {
                       onClick={() => handleDeleteSessionInCourse(activeSession.id, activeSession.title)}
                       className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl text-xs border border-red-200 flex items-center gap-1.5 transition-colors"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Xóa Buổi Này
+                      <Trash2 className="w-3.5 h-3.5" /> Xóa Bài Này
                     </button>
 
                     <span className="text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
@@ -1106,7 +1106,7 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-2">Tiêu Đề Buổi Học:</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-2">Tiêu Đề Bài Học:</label>
                     <input
                       type="text"
                       value={activeSession.title}
@@ -1415,7 +1415,7 @@ export default function AdminPage() {
               <div>
                 <h2 className="text-xl font-black text-[#1b2a47]">Quản Lý Khóa Học & Phân Lớp Học Viên</h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Tạo các khóa học độc lập, tùy chỉnh số buổi học (4, 8, 12, 16 buổi...) và xếp học viên vào từng lớp.
+                  Tạo các khóa học độc lập, tùy chỉnh số bài học (4, 8, 12, 16 bài...) và xếp học viên vào từng lớp.
                 </p>
               </div>
 
@@ -1440,7 +1440,7 @@ export default function AdminPage() {
                           ID: {course.id}
                         </span>
                         <span className="text-xs font-black px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                          {course.total_sessions} Buổi Học
+                          {course.total_sessions} Bài Học
                         </span>
                       </div>
 
@@ -1585,7 +1585,7 @@ export default function AdminPage() {
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-right min-w-[200px]">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Tiến Độ Khóa Học:</span>
                 <span className="text-2xl font-black text-emerald-600">
-                  {selectedStudentProfile.completed_count}/8 Buổi ({Math.round((selectedStudentProfile.completed_count / 8) * 100)}%)
+                  {selectedStudentProfile.completed_count}/8 Bài ({Math.round((selectedStudentProfile.completed_count / 8) * 100)}%)
                 </span>
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mt-2">
                   <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${Math.round((selectedStudentProfile.completed_count / 8) * 100)}%` }}></div>
@@ -1593,10 +1593,10 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 1. Ma Trận 8 Buổi Học */}
+            {/* 1. Ma Trận Bài Học */}
             <div className="space-y-3">
               <h3 className="font-black text-sm text-[#1b2a47] uppercase tracking-wider">
-                1. Trạng Thái Chi Tiết Tiến Độ 8 Buổi Học:
+                1. Trạng Thái Chi Tiết Tiến Độ Bài Học:
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(sNum => {
@@ -1612,7 +1612,7 @@ export default function AdminPage() {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-black text-xs">Buổi {sNum}</span>
+                        <span className="font-black text-xs">Bài {sNum}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                           {isDone ? 'Hoàn thành ✓' : 'Chưa học'}
                         </span>
@@ -1660,7 +1660,7 @@ export default function AdminPage() {
                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
                             <div>
                               <h4 className="font-black text-sm text-[#1b2a47]">
-                                🎬 Bài Nộp Buổi {sub.session_id}: {sess?.title || `Buổi học ${sub.session_id}`}
+                                🎬 Bài Nộp Bài {sub.session_id}: {sess?.title || `Bài học ${sub.session_id}`}
                               </h4>
                               <span className="text-[11px] text-slate-400">Thời gian nộp: {sub.created_at}</span>
                             </div>
@@ -1779,18 +1779,18 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="font-extrabold text-slate-700 block mb-1">Số Lượng Buổi Học Khóa Này:</label>
+                <label className="font-extrabold text-slate-700 block mb-1">Số Lượng Bài Học Khóa Này:</label>
                 <select
                   value={newCourseSessions}
                   onChange={e => setNewCourseSessions(Number(e.target.value))}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-bold text-slate-800 focus:border-[#1b2a47] outline-none"
                 >
-                  <option value={4}>4 Buổi Học (Khóa Ngắn / Cấp Tốc)</option>
-                  <option value={6}>6 Buổi Học</option>
-                  <option value={8}>8 Buổi Học (Chuẩn)</option>
-                  <option value={10}>10 Buổi Học</option>
-                  <option value={12}>12 Buổi Học (Chuyên Sâu)</option>
-                  <option value={16}>16 Buổi Học (Toàn Diện)</option>
+                  <option value={4}>4 Bài Học (Khóa Ngắn / Cấp Tốc)</option>
+                  <option value={6}>6 Bài Học</option>
+                  <option value={8}>8 Bài Học (Chuẩn)</option>
+                  <option value={10}>10 Bài Học</option>
+                  <option value={12}>12 Bài Học (Chuyên Sâu)</option>
+                  <option value={16}>16 Bài Học (Toàn Diện)</option>
                 </select>
               </div>
             </div>
@@ -1850,7 +1850,7 @@ export default function AdminPage() {
                       <div className="flex items-center gap-2">
                         <span className="font-black text-sm text-[#1b2a47]">{c.title}</span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
-                          {c.total_sessions} Buổi
+                          {c.total_sessions} Bài
                         </span>
                       </div>
                       <span className="text-xs text-slate-500 block mt-0.5">{c.subtitle}</span>

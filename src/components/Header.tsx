@@ -85,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           <Mic className={`w-4 h-4 ${isRecording ? 'text-white animate-ping' : 'text-rose-400'}`} />
-          <span>{isRecording ? 'Đang Ghi Âm 3D...' : 'Ghi Âm Buổi Học'}</span>
+          <span>{isRecording ? 'Đang Ghi Âm 3D...' : 'Ghi Âm Bài Học'}</span>
         </button>
 
         {/* Volume Dial Slider */}

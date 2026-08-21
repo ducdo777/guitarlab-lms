@@ -5,7 +5,7 @@ export default function App() {
       {/* ══ TOP BANNER ══ */}
       <div className="bg-[#1b2a47] text-white text-xs sm:text-sm py-2 px-4 flex flex-wrap justify-center items-center gap-3 border-b border-amber-500/20 z-50">
         <span className="font-medium text-amber-100/90 text-center">
-          Khoá Học Guitar Đệm Hát 8 Buổi — Tặng Kèm Metronome & Tuner Chuyên Nghiệp
+          Khoá Học Guitar Đệm Hát 8 Bài — Tặng Kèm Metronome & Tuner Chuyên Nghiệp
         </span>
         <a 
           href="/quest.html" 
@@ -34,12 +34,12 @@ export default function App() {
           <nav className="hidden lg:flex items-center gap-7 text-[#1b2a47] font-semibold text-sm">
             <a href="/" className="text-amber-600 font-bold border-b-2 border-amber-500 pb-1">Trang chủ</a>
             <a href="/quest.html" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
-              Khoá Học 8 Buổi
+              Khoá Học 8 Bài
             </a>
             <a href="/admin.html" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
               Cổng Giáo Viên
             </a>
-            <a href="/quest.html" className="hover:text-amber-600 transition-colors uppercase text-xs font-bold bg-amber-50 text-amber-800 px-3 py-1.5 rounded-full border border-amber-200/60">
+            <a href="/quest.html" className="hover:text-amber-600 transition-colors uppercase text-xs font-bold bg-amber-50 text-amber-800 px-3.5 py-1.5 rounded-full border border-amber-200/60">
               CỔNG HỌC VIÊN
             </a>
           </nav>
@@ -131,7 +131,7 @@ export default function App() {
                   <div className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm font-bold text-xs">
                     ✓
                   </div>
-                  <span><strong className="text-gray-900 font-extrabold">Giáo trình 8 buổi</strong> chuẩn Quốc tế dành riêng cho người mới</span>
+                  <span><strong className="text-gray-900 font-extrabold">Giáo trình 8 bài</strong> chuẩn Quốc tế dành riêng cho người mới</span>
                 </li>
                 <li className="flex items-start gap-3 text-sm text-gray-700">
                   <div className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm font-bold text-xs">

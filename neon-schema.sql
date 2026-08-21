@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_progress_student ON student_progress(student_id);
 INSERT INTO courses (id, title, subtitle, description, total_sessions)
 VALUES (
   'guitar-8-buoi',
-  'Khoá Học Guitar Đệm Hát 8 Buổi',
+  'Khoá Học Guitar Đệm Hát 8 Bài',
   'Lộ trình chuẩn hóa từ Zero đến đệm hát thuần thục bài hát yêu thích',
   'Dành riêng cho người mới bắt đầu học đàn guitar acoustic',
   8
