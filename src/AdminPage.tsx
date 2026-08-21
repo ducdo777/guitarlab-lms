@@ -72,6 +72,7 @@ export default function AdminPage() {
   const [newCourseSubtitle, setNewCourseSubtitle] = useState('');
   const [newCourseSessions, setNewCourseSessions] = useState(8);
   const [enrollModalStudent, setEnrollModalStudent] = useState<StudentProgressItem | null>(null);
+  const [editorCourseId, setEditorCourseId] = useState<string>('guitar-8-buoi');
 
   useEffect(() => {
     async function loadAllDatabaseData() {
@@ -292,6 +293,57 @@ export default function AdminPage() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
+  const fetchSessionsForCourse = async (courseId: string) => {
+    try {
+      const dbSessions = await sql`
+        SELECT * FROM sessions 
+        WHERE course_id = ${courseId} OR (course_id IS NULL AND ${courseId} = 'guitar-8-buoi')
+        ORDER BY order_index ASC, id ASC
+      `;
+      if (dbSessions && dbSessions.length > 0) {
+        const mapped: Session[] = dbSessions.map((dbItem: any, idx: number) => {
+          const sessNum = idx + 1;
+          const dbChords = dbItem?.chords && Array.isArray(dbItem.chords) && dbItem.chords.length > 0 ? dbItem.chords : ['C', 'G', 'Am', 'Em'];
+          const dbExercises = dbItem?.exercises 
+            ? (typeof dbItem.exercises === 'string' ? JSON.parse(dbItem.exercises) : dbItem.exercises)
+            : [
+                { id: 1, text: `Thực hành gảy nhịp cho Buổi ${sessNum}`, done: false },
+                { id: 2, text: `Quay video đoạn đàn thực hành Buổi ${sessNum} gửi thầy`, done: false }
+              ];
+
+          return {
+            id: Number(dbItem.id),
+            title: dbItem.title || `Buổi ${sessNum}: Bài thực hành ${sessNum}`,
+            subtitle: dbItem.subtitle || `Nội dung hướng dẫn chi tiết cho buổi học thứ ${sessNum}`,
+            icon: dbItem.icon || '🎸',
+            xp: 100,
+            color: 'amber',
+            x: 0,
+            y: 0,
+            completed: false,
+            unlocked: true,
+            content: {
+              theory: dbItem.theory_content || `Chào mừng bạn đến với Buổi ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`,
+              practice: [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: dbItem.youtube_video_id || 'dQw4w9WgXcQ' }],
+              youtubeVideoId: dbItem.youtube_video_id || 'dQw4w9WgXcQ',
+              chords: {
+                symbols: dbChords,
+                title: 'Các Hợp Âm Thực Hành Buổi Này'
+              },
+              exercises: dbExercises
+            }
+          };
+        });
+        setSessions(mapped);
+        if (mapped.length > 0) setActiveEditorId(mapped[0].id);
+      } else {
+        setSessions([]);
+      }
+    } catch (e) {
+      console.warn('Fetch sessions for course error:', e);
+    }
+  };
+
   const handleSaveEditor = async () => {
     saveSessionsData(sessions);
 
@@ -299,22 +351,36 @@ export default function AdminPage() {
       try {
         const chordsArr = activeSession.content.chords?.symbols || [];
         const exercisesArr = JSON.stringify(activeSession.content.exercises || []);
-        const ytbId = activeSession.content.practice[0]?.youtubeId || 'dQw4w9WgXcQ';
+        const ytbId = activeSession.content.practice[0]?.youtubeId || (activeSession.content as any).youtubeVideoId || 'dQw4w9WgXcQ';
+        const theoryContent = typeof activeSession.content.theory === 'string' ? activeSession.content.theory : '';
 
         await sql`
-          UPDATE sessions 
-          SET title = ${activeSession.title},
-              subtitle = ${activeSession.subtitle},
-              youtube_video_id = ${ytbId},
-              chords = ${chordsArr},
-              exercises = ${exercisesArr}::jsonb
-          WHERE id = ${activeSession.id}
+          INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, theory_content, chords, exercises)
+          VALUES (
+            ${activeSession.id}, 
+            ${editorCourseId}, 
+            ${activeSession.title}, 
+            ${activeSession.subtitle}, 
+            ${activeSession.icon || '🎸'}, 
+            ${ytbId}, 
+            ${theoryContent}, 
+            ${chordsArr}, 
+            ${exercisesArr}::jsonb
+          )
+          ON CONFLICT (id) DO UPDATE SET 
+            course_id = EXCLUDED.course_id,
+            title = EXCLUDED.title,
+            subtitle = EXCLUDED.subtitle,
+            youtube_video_id = EXCLUDED.youtube_video_id,
+            theory_content = EXCLUDED.theory_content,
+            chords = EXCLUDED.chords,
+            exercises = EXCLUDED.exercises
         `;
       } catch (e) {
         console.warn('Neon DB session update note:', e);
       }
     }
-    showToast('Đã lưu nội dung bài học, hợp âm & danh sách bài tập lên CSDL Neon!');
+    showToast(`Đã lưu cấu hình bài học cho khóa ${editorCourseId} lên CSDL Neon!`);
   };
 
   const handleGradeSubmission = async () => {
@@ -769,7 +835,35 @@ export default function AdminPage() {
             TAB 3: CẤU HÌNH BÀI HỌC (COURSE CONTENT EDITOR)
            ------------------------------------------------------------- */}
         {activeTab === 'editor' && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="space-y-6 animate-fadeIn">
+            {/* Course Selector Header Bar */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-[#1b2a47]">Cấu Hình Nội Dung Bài Học Cho Khóa Học</h2>
+                <p className="text-xs text-slate-500 mt-1">Chọn khóa học để chỉnh sửa tiêu đề, video giảng dạy, hợp âm và danh sách bài tập</p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-2xl border border-amber-200 shrink-0">
+                <span className="text-xs font-extrabold text-amber-900">📚 Chọn Khóa Học:</span>
+                <select
+                  value={editorCourseId}
+                  onChange={e => {
+                    const cId = e.target.value;
+                    setEditorCourseId(cId);
+                    fetchSessionsForCourse(cId);
+                  }}
+                  className="bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-black text-[#1b2a47] outline-none cursor-pointer shadow-xs"
+                >
+                  {coursesList.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} ({c.total_sessions} Buổi)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             
             {/* Sessions Selector Sidebar */}
             <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-2">
@@ -1109,6 +1203,7 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </div>
         )}
 
         {/* -------------------------------------------------------------
