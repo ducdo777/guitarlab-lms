@@ -14,7 +14,9 @@ import {
   Sparkles,
   Maximize2,
   Minimize2,
-  X
+  X,
+  Volume2,
+  Zap
 } from 'lucide-react';
 import { sql } from '../../lib/neon';
 import { audioEngine } from '../../services/audioEngine';
@@ -26,6 +28,8 @@ interface Props {
   defaultTimeSignature?: number;
   onSubmitted?: () => void;
 }
+
+type MetronomeSize = 'SM' | 'MD' | 'LG' | 'XL';
 
 export const WebcamRecorder: React.FC<Props> = ({ 
   sessionId, 
@@ -76,12 +80,15 @@ export const WebcamRecorder: React.FC<Props> = ({
   const [playMetronomeAudio, setPlayMetronomeAudio] = useState<boolean>(true);
   const [metronomeBpm, setMetronomeBpm] = useState<number>(defaultBpm);
   const [metronomeTimeSig, setMetronomeTimeSig] = useState<number>(defaultTimeSignature);
+  const [metronomeSize, setMetronomeSize] = useState<MetronomeSize>('LG'); // SM, MD, LG, XL
+  const [metronomeVolume, setMetronomeVolume] = useState<number>(120); // 0 - 200%
+  const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [currentBeat, setCurrentBeat] = useState<number>(0);
   const currentBeatRef = useRef<number>(0);
 
   // Sync default bpm & time signature when prop updates
   useEffect(() => {
-    if (defaultBpm && defaultBpm >= 40 && defaultBpm <= 220) {
+    if (defaultBpm && defaultBpm >= 30 && defaultBpm <= 250) {
       setMetronomeBpm(defaultBpm);
     }
     if (defaultTimeSignature && [2, 3, 4, 6].includes(defaultTimeSignature)) {
@@ -99,6 +106,21 @@ export const WebcamRecorder: React.FC<Props> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExpanded]);
+
+  // Tap tempo calculator
+  const handleTap = () => {
+    const now = Date.now();
+    const taps = [...tapTimes, now].slice(-4);
+    setTapTimes(taps);
+    if (taps.length >= 2) {
+      const intervals = taps.slice(1).map((t, i) => t - taps[i]);
+      const avg = intervals.reduce((a, b) => a + b) / intervals.length;
+      const calc = Math.round(60000 / avg);
+      if (calc >= 30 && calc <= 250) {
+        setMetronomeBpm(calc);
+      }
+    }
+  };
 
   // Enumerate audio input devices
   const loadAudioDevices = async () => {
@@ -170,7 +192,6 @@ export const WebcamRecorder: React.FC<Props> = ({
           }
           const rms = Math.sqrt(sum / timeData.length);
           
-          // Sensitivity with micVolume gain multiplier
           const sensitivity = (micVolume / 100);
           const rawLevel = rms * 350 * sensitivity;
           const level = Math.min(100, Math.max(0, Math.round(rawLevel)));
@@ -315,11 +336,11 @@ export const WebcamRecorder: React.FC<Props> = ({
     return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
   };
 
-  // Draw overlay on canvas
+  // Draw overlay on canvas with size scaling
   const drawMetronomeOverlay = useCallback(() => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    if (!canvas || !video || video.readyState < 2) return;
+    if (!canvas || !video) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -340,57 +361,62 @@ export const WebcamRecorder: React.FC<Props> = ({
     }
     ctx.restore();
 
-    // 2. Draw Metronome HUD Badge if enabled
+    // 2. Draw Scaled Metronome HUD Badge if enabled
     if (embedMetronome) {
       const beat = currentBeatRef.current;
 
-      const badgeWidth = 240;
-      const badgeHeight = 68;
-      const badgeX = width - badgeWidth - 20;
-      const badgeY = 20;
+      // Scaling dimensions based on metronomeSize
+      const scaleMultiplier = metronomeSize === 'SM' ? 0.8 : metronomeSize === 'MD' ? 1.0 : metronomeSize === 'LG' ? 1.4 : 1.8;
+      
+      const badgeWidth = Math.round(240 * scaleMultiplier);
+      const badgeHeight = Math.round(68 * scaleMultiplier);
+      const badgeX = width - badgeWidth - 24;
+      const badgeY = 24;
 
       ctx.save();
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 1.5;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = Math.max(1.5, Math.round(2 * scaleMultiplier));
       
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 14);
+      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, Math.round(14 * scaleMultiplier));
       ctx.fill();
       ctx.stroke();
 
-      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+      // Top text: Metronome info
+      const fontSize = Math.round(12 * scaleMultiplier);
+      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = '#f8fafc';
-      ctx.fillText(`⏱️ METRONOME: ${metronomeBpm} BPM (${metronomeTimeSig}/4)`, badgeX + 14, badgeY + 22);
+      ctx.fillText(`⏱️ METRONOME: ${metronomeBpm} BPM (${metronomeTimeSig}/4)`, badgeX + Math.round(14 * scaleMultiplier), badgeY + Math.round(22 * scaleMultiplier));
 
-      const pillGap = 6;
-      const pillWidth = 28;
-      const pillHeight = 22;
+      const pillGap = Math.round(6 * scaleMultiplier);
+      const pillWidth = Math.round(28 * scaleMultiplier);
+      const pillHeight = Math.round(24 * scaleMultiplier);
       const totalPillsWidth = metronomeTimeSig * pillWidth + (metronomeTimeSig - 1) * pillGap;
       const startPillX = badgeX + (badgeWidth - totalPillsWidth) / 2;
-      const pillY = badgeY + 34;
+      const pillY = badgeY + Math.round(32 * scaleMultiplier);
 
       for (let i = 1; i <= metronomeTimeSig; i++) {
         const pX = startPillX + (i - 1) * (pillWidth + pillGap);
         const isActive = beat === i;
 
         ctx.beginPath();
-        ctx.roundRect(pX, pillY, pillWidth, pillHeight, 6);
+        ctx.roundRect(pX, pillY, pillWidth, pillHeight, Math.round(6 * scaleMultiplier));
 
         if (isActive) {
           ctx.fillStyle = i === 1 ? '#f59e0b' : '#10b981';
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 2;
           ctx.stroke();
 
           ctx.fillStyle = '#0f172a';
-          ctx.font = '900 12px system-ui, sans-serif';
+          ctx.font = `900 ${Math.round(13 * scaleMultiplier)}px system-ui, sans-serif`;
         } else {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
           ctx.fill();
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = 'bold 11px system-ui, sans-serif';
+          ctx.fillStyle = '#cbd5e1';
+          ctx.font = `bold ${Math.round(11 * scaleMultiplier)}px system-ui, sans-serif`;
         }
 
         ctx.textAlign = 'center';
@@ -405,22 +431,22 @@ export const WebcamRecorder: React.FC<Props> = ({
 
     // 3. Draw Live REC indicator
     ctx.save();
-    const recX = 20;
-    const recY = 40;
+    const recX = 24;
+    const recY = 44;
     ctx.fillStyle = 'rgba(225, 29, 72, 0.9)';
     ctx.beginPath();
-    ctx.arc(recX + 8, recY - 4, 6, 0, Math.PI * 2);
+    ctx.arc(recX + 8, recY - 4, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.font = 'bold 14px monospace';
+    ctx.font = 'bold 15px monospace';
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 4;
     const m = Math.floor(timer / 60).toString().padStart(2, '0');
     const s = (timer % 60).toString().padStart(2, '0');
-    ctx.fillText(`REC ${m}:${s}`, recX + 20, recY);
+    ctx.fillText(`REC ${m}:${s}`, recX + 22, recY);
     ctx.restore();
-  }, [embedMetronome, metronomeBpm, metronomeTimeSig, timer]);
+  }, [embedMetronome, metronomeBpm, metronomeTimeSig, metronomeSize, timer]);
 
   // Metronome sound & beat interval during recording
   useEffect(() => {
@@ -431,7 +457,7 @@ export const WebcamRecorder: React.FC<Props> = ({
           const next = (prev % metronomeTimeSig) + 1;
           currentBeatRef.current = next;
           if (playMetronomeAudio) {
-            audioEngine.playClick(next === 1);
+            audioEngine.playClick(next === 1, metronomeVolume / 100);
           }
           return next;
         });
@@ -449,7 +475,7 @@ export const WebcamRecorder: React.FC<Props> = ({
         clearInterval(metronomeTimerRef.current);
       }
     };
-  }, [recording, embedMetronome, playMetronomeAudio, metronomeBpm, metronomeTimeSig]);
+  }, [recording, embedMetronome, playMetronomeAudio, metronomeBpm, metronomeTimeSig, metronomeVolume]);
 
   // Start Recording
   const startRecording = async () => {
@@ -469,7 +495,6 @@ export const WebcamRecorder: React.FC<Props> = ({
         canvas.width = 1280;
         canvas.height = 720;
 
-        // Perform initial draw
         drawMetronomeOverlay();
 
         const canvasStream = canvas.captureStream(30);
@@ -640,7 +665,7 @@ export const WebcamRecorder: React.FC<Props> = ({
   if (status === 'IDLE' || status === 'RECORDING') {
     return (
       <>
-        {/* Offscreen Canvas for Compositing Video + Metronome Overlay (Not display:none to ensure active frame rendering) */}
+        {/* Offscreen Canvas for Compositing Video + Metronome Overlay */}
         <canvas 
           ref={canvasRef} 
           width={1280} 
@@ -770,7 +795,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Video Player Box with Non-Overlapping Header Badges */}
+              {/* Video Player Box with Scalable Metronome HUD */}
               <div className={`relative bg-black rounded-2xl sm:rounded-3xl overflow-hidden aspect-video flex items-center justify-center border border-white/10 shadow-2xl ${
                 isExpanded ? 'w-full max-h-[65vh]' : 'w-full'
               }`}>
@@ -797,30 +822,55 @@ export const WebcamRecorder: React.FC<Props> = ({
                   )}
                 </div>
 
-                {/* Top Right: Metronome Mini HUD & Zoom Toggle Button */}
-                <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+                {/* Top Right: Scalable Metronome HUD & Zoom Toggle Button */}
+                <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
                   {embedMetronome && (
-                    <div className="bg-slate-950/80 backdrop-blur-md border border-white/20 px-2 py-1 rounded-xl shadow-lg flex items-center gap-1.5">
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-amber-300">
+                    <div className={`bg-slate-950/90 backdrop-blur-md border border-white/25 shadow-xl flex flex-col items-center gap-1 transition-all ${
+                      metronomeSize === 'SM' 
+                        ? 'p-1.5 rounded-xl' 
+                        : metronomeSize === 'MD' 
+                          ? 'p-2 rounded-2xl' 
+                          : metronomeSize === 'LG'
+                            ? 'p-2.5 rounded-2xl ring-2 ring-amber-400/30'
+                            : 'p-3.5 rounded-3xl ring-4 ring-amber-400/40 scale-105'
+                    }`}>
+                      <div className={`flex items-center gap-1 font-bold text-amber-300 ${
+                        metronomeSize === 'SM' 
+                          ? 'text-[9px]' 
+                          : metronomeSize === 'MD' 
+                            ? 'text-[11px]' 
+                            : metronomeSize === 'LG'
+                              ? 'text-xs'
+                              : 'text-sm font-black'
+                      }`}>
                         <Music className="w-3 h-3 text-amber-400" />
-                        <span>{metronomeBpm}</span>
+                        <span>{metronomeBpm} BPM ({metronomeTimeSig}/4)</span>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      {/* Beat Indicator Pills with Scaled Sizes */}
+                      <div className="flex items-center gap-1.5">
                         {Array.from({ length: metronomeTimeSig }).map((_, idx) => {
                           const beatNum = idx + 1;
                           const isActive = currentBeat === beatNum;
                           const isAccent = beatNum === 1;
 
+                          const pillClasses = metronomeSize === 'SM'
+                            ? 'w-4 h-4 text-[9px] rounded'
+                            : metronomeSize === 'MD'
+                              ? 'w-5 h-5 text-[10px] rounded-lg'
+                              : metronomeSize === 'LG'
+                                ? 'w-7 h-7 text-xs font-black rounded-xl'
+                                : 'w-9 h-9 text-sm font-black rounded-2xl';
+
                           return (
                             <div
                               key={idx}
-                              className={`w-4 h-4 sm:w-5 sm:h-5 rounded flex items-center justify-center text-[9px] font-black transition-all ${
+                              className={`${pillClasses} flex items-center justify-center transition-all ${
                                 isActive
                                   ? isAccent
-                                    ? 'bg-amber-400 text-slate-950 scale-110 shadow-sm'
-                                    : 'bg-emerald-400 text-slate-950 scale-105 shadow-sm'
-                                  : 'bg-white/15 text-slate-400'
+                                    ? 'bg-amber-400 text-slate-950 font-black scale-110 shadow-md shadow-amber-400/60 ring-2 ring-white'
+                                    : 'bg-emerald-400 text-slate-950 font-black scale-105 shadow-md shadow-emerald-400/50 ring-2 ring-white'
+                                  : 'bg-white/20 text-slate-300 font-bold'
                               }`}
                             >
                               {beatNum}
@@ -834,7 +884,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                   {/* Zoom In / Zoom Out (Fullscreen) Button */}
                   <button
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-md text-slate-200 hover:text-white rounded-xl border border-white/20 transition-all shadow-md"
+                    className="p-2 bg-black/70 hover:bg-black/90 backdrop-blur-md text-slate-200 hover:text-white rounded-2xl border border-white/25 transition-all shadow-md"
                     title={isExpanded ? 'Thu nhỏ giao diện' : 'Phóng to toàn màn hình'}
                   >
                     {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -842,7 +892,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* ══ CLEAN BOTTOM RECORD CONTROL TOOLBAR (SEPARATED FROM VIDEO TO PREVENT OVERLAPPING) ══ */}
+              {/* ══ CLEAN BOTTOM RECORD CONTROL TOOLBAR ══ */}
               <div className="flex items-center justify-between gap-2 p-2 sm:p-3 bg-slate-950/90 rounded-2xl border border-white/10">
                 
                 {/* Left: Settings Toggle Button */}
@@ -856,7 +906,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                   title="Cài đặt Micro & Metronome"
                 >
                   <Sliders className="w-3.5 h-3.5" />
-                  <span>{showSettings ? 'Đóng' : 'Chỉnh Mic & Nhịp'}</span>
+                  <span>{showSettings ? 'Đóng Cài Đặt' : 'Chỉnh Mic & Metronome'}</span>
                 </button>
 
                 {/* Center: Prominent Record / Stop Button */}
@@ -936,13 +986,13 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* ══ EXPANDABLE SETTINGS (RESPONSIVE SINGLE/DUAL COLUMN) ══ */}
+              {/* ══ EXPANDABLE SETTINGS: SIZE, VOLUME, CUSTOM BPM ══ */}
               {showSettings && (
-                <div className="p-4 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-4 shadow-xl text-white">
+                <div className="p-4 sm:p-5 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-4 shadow-xl text-white">
                   
                   <div className="flex items-center justify-between pb-2 border-b border-white/10">
                     <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sliders className="w-3.5 h-3.5" /> Thiết Lập Âm Thanh & Metronome
+                      <Sliders className="w-3.5 h-3.5" /> Thiết Lập Chi Tiết Âm Thanh & Metronome
                     </h4>
                     <button 
                       onClick={() => setShowSettings(false)}
@@ -952,11 +1002,10 @@ export const WebcamRecorder: React.FC<Props> = ({
                     </button>
                   </div>
 
-                  {/* Responsive Grid: Stacks cleanly on mobile, 2 cols on desktop */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
-                    {/* Left Column: Mic Device & Gain */}
-                    <div className="space-y-3 bg-slate-900/60 p-3 rounded-xl border border-white/5">
+                    {/* Left Column: Mic Config + Metronome Volume */}
+                    <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-white/5">
                       <div>
                         <label className="text-[11px] font-bold text-slate-300 block mb-1">
                           Cổng Thu Âm (Microphone):
@@ -978,9 +1027,10 @@ export const WebcamRecorder: React.FC<Props> = ({
                         </select>
                       </div>
 
+                      {/* Mic Gain Slider */}
                       <div>
                         <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
-                          <span>Độ Nhạy Mic (Gain):</span>
+                          <span>Độ Nhạy Mic (Mic Gain):</span>
                           <span className="text-amber-400 font-mono font-bold">{micVolume}%</span>
                         </div>
                         <input
@@ -992,11 +1042,79 @@ export const WebcamRecorder: React.FC<Props> = ({
                           className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
                         />
                       </div>
+
+                      {/* Metronome Sound Volume (Tăng / Giảm Âm Lượng Tiếng Click) */}
+                      <div className="pt-2 border-t border-white/10">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
+                          <span className="flex items-center gap-1 text-amber-300">
+                            <Volume2 className="w-3.5 h-3.5" /> Âm Lượng Tiếng Gõ Metronome:
+                          </span>
+                          <span className="text-amber-400 font-mono font-black">{metronomeVolume}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={200}
+                          value={metronomeVolume}
+                          onChange={(e) => setMetronomeVolume(Number(e.target.value))}
+                          className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                        />
+                        <div className="flex items-center gap-1.5 pt-1.5">
+                          {[
+                            { v: 50, l: '50% Nhẹ' },
+                            { v: 100, l: '100% Vừa' },
+                            { v: 150, l: '150% To' },
+                            { v: 200, l: '200% Rất To' }
+                          ].map(pv => (
+                            <button
+                              key={pv.v}
+                              type="button"
+                              onClick={() => setMetronomeVolume(pv.v)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                                metronomeVolume === pv.v 
+                                  ? 'bg-amber-400 text-slate-950 border-amber-300 font-black' 
+                                  : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/15'
+                              }`}
+                            >
+                              {pv.l}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Right Column: Metronome Overlay & Tempo Controls */}
-                    <div className="space-y-3 bg-slate-900/60 p-3 rounded-xl border border-white/5">
-                      <div className="space-y-2">
+                    {/* Right Column: Metronome Size & Custom Tempo Controls */}
+                    <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-white/5">
+                      
+                      {/* Metronome HUD Size Selector (Tăng / Giảm Kích Thước Hình Metronome) */}
+                      <div>
+                        <label className="text-[11px] font-bold text-amber-300 block mb-1.5">
+                          Kích Thước Bảng Metronome Trên Video:
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {(['SM', 'MD', 'LG', 'XL'] as MetronomeSize[]).map((sz) => {
+                            const label = sz === 'SM' ? 'Nhỏ (1x)' : sz === 'MD' ? 'Vừa (1.3x)' : sz === 'LG' ? 'Lớn (1.6x)' : 'Cực Đại (2x)';
+                            const isSel = metronomeSize === sz;
+                            return (
+                              <button
+                                key={sz}
+                                type="button"
+                                onClick={() => setMetronomeSize(sz)}
+                                className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold transition-all border text-center ${
+                                  isSel
+                                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black scale-105'
+                                    : 'bg-white/10 text-slate-300 border-white/10 hover:bg-white/20'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Checkboxes */}
+                      <div className="space-y-1.5 pt-1">
                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
                           <input
                             type="checkbox"
@@ -1004,9 +1122,9 @@ export const WebcamRecorder: React.FC<Props> = ({
                             onChange={(e) => setEmbedMetronome(e.target.checked)}
                             className="w-4 h-4 rounded text-amber-500 focus:ring-0"
                           />
-                          <span className="flex items-center gap-1 text-[11px] sm:text-xs">
+                          <span className="flex items-center gap-1 text-[11px]">
                             <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            Nhúng bảng Metronome vào Video
+                            Nhúng Bảng Metronome Trực Tiếp Vào Video (HUD)
                           </span>
                         </label>
 
@@ -1017,43 +1135,104 @@ export const WebcamRecorder: React.FC<Props> = ({
                             onChange={(e) => setPlayMetronomeAudio(e.target.checked)}
                             className="w-4 h-4 rounded text-amber-500 focus:ring-0"
                           />
-                          <span className="text-[11px] sm:text-xs">Gõ tiếng Metronome khi quay</span>
+                          <span className="text-[11px]">Gõ tiếng Metronome khi bấm quay video</span>
                         </label>
                       </div>
 
-                      {/* Metronome Tempo & Time Signature Selector */}
-                      <div className="p-2.5 bg-slate-950 rounded-xl border border-white/10 space-y-2">
-                        <div className="flex items-center justify-between flex-wrap gap-1">
-                          <span className="text-[11px] font-bold text-slate-300">Tốc Độ:</span>
-                          <div className="flex items-center gap-1.5">
+                      {/* Custom BPM & Time Signature Controls */}
+                      <div className="p-3 bg-slate-950 rounded-xl border border-white/10 space-y-2.5">
+                        
+                        {/* Direct BPM input + Step Buttons */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-slate-300">Tốc Độ Tùy Chỉnh:</span>
+                          
+                          <div className="flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => setMetronomeBpm(b => Math.max(40, b - 5))}
-                              className="px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold text-white"
+                              onClick={() => setMetronomeBpm(b => Math.max(30, b - 10))}
+                              className="px-1.5 py-1 bg-white/10 hover:bg-white/20 rounded text-[10px] font-bold text-white"
+                            >
+                              -10
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm(b => Math.max(30, b - 5))}
+                              className="px-1.5 py-1 bg-white/10 hover:bg-white/20 rounded text-[10px] font-bold text-white"
                             >
                               -5
                             </button>
-                            <span className="font-mono font-black text-amber-400 text-xs px-1">{metronomeBpm} BPM</span>
                             <button
                               type="button"
-                              onClick={() => setMetronomeBpm(b => Math.min(220, b + 5))}
-                              className="px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold text-white"
+                              onClick={() => setMetronomeBpm(b => Math.max(30, b - 1))}
+                              className="px-1.5 py-1 bg-white/10 hover:bg-white/20 rounded text-[10px] font-bold text-white"
+                            >
+                              -1
+                            </button>
+
+                            {/* Direct Number Input */}
+                            <input
+                              type="number"
+                              min={30}
+                              max={250}
+                              value={metronomeBpm}
+                              onChange={(e) => setMetronomeBpm(Math.max(30, Math.min(250, Number(e.target.value) || 60)))}
+                              className="w-14 bg-white/10 border border-amber-400/40 rounded-lg px-1.5 py-1 text-xs font-mono font-black text-amber-400 text-center outline-none"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm(b => Math.min(250, b + 1))}
+                              className="px-1.5 py-1 bg-white/10 hover:bg-white/20 rounded text-[10px] font-bold text-white"
+                            >
+                              +1
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm(b => Math.min(250, b + 5))}
+                              className="px-1.5 py-1 bg-white/10 hover:bg-white/20 rounded text-[10px] font-bold text-white"
                             >
                               +5
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm(b => Math.min(250, b + 10))}
+                              className="px-1.5 py-1 bg-white/10 hover:bg-white/20 rounded text-[10px] font-bold text-white"
+                            >
+                              +10
                             </button>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 pt-1 border-t border-white/5 flex-wrap">
+                        {/* Slider + Tap Tempo */}
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={30}
+                            max={250}
+                            value={metronomeBpm}
+                            onChange={(e) => setMetronomeBpm(Number(e.target.value))}
+                            className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleTap}
+                            className="px-2.5 py-1 bg-amber-500/30 hover:bg-amber-500/50 text-amber-300 text-[10px] font-black rounded-lg border border-amber-400/40 shrink-0"
+                          >
+                            👆 Tap Tempo
+                          </button>
+                        </div>
+
+                        {/* Time Signature */}
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-white/10 flex-wrap">
                           <span className="text-[10px] font-bold text-slate-400">Nhịp:</span>
                           {[2, 3, 4, 6].map(ts => (
                             <button
                               key={ts}
                               type="button"
                               onClick={() => setMetronomeTimeSig(ts)}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                              className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
                                 metronomeTimeSig === ts
-                                  ? 'bg-amber-400 text-slate-950 font-black'
+                                  ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
                                   : 'bg-white/10 text-slate-300 hover:bg-white/20'
                               }`}
                             >
@@ -1061,6 +1240,34 @@ export const WebcamRecorder: React.FC<Props> = ({
                             </button>
                           ))}
                         </div>
+
+                        {/* Speed Presets */}
+                        <div className="flex items-center gap-1 pt-1 overflow-x-auto">
+                          <span className="text-[9px] font-bold text-slate-400 shrink-0 flex items-center gap-0.5">
+                            <Zap className="w-2.5 h-2.5 text-amber-400" /> Gợi ý:
+                          </span>
+                          {[
+                            { bpm: 60, l: '60' },
+                            { bpm: 75, l: '75' },
+                            { bpm: 90, l: '90' },
+                            { bpm: 105, l: '105' },
+                            { bpm: 125, l: '125' },
+                          ].map(ps => (
+                            <button
+                              key={ps.bpm}
+                              type="button"
+                              onClick={() => setMetronomeBpm(ps.bpm)}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all ${
+                                metronomeBpm === ps.bpm
+                                  ? 'bg-amber-400 text-slate-950 font-black'
+                                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                              }`}
+                            >
+                              {ps.l}
+                            </button>
+                          ))}
+                        </div>
+
                       </div>
 
                     </div>

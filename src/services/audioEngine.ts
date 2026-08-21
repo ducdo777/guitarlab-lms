@@ -333,26 +333,32 @@ class AudioEngine {
     return buffer;
   }
 
-  // Metronome Click sound
-  public playClick(accent: boolean = false) {
+  // Metronome Click sound with custom volume multiplier
+  public playClick(accent: boolean = false, volumeMultiplier: number = 1.0) {
     this.init();
     if (!this.ctx || !this.masterGain) return;
 
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(accent ? 1200 : 800, now);
+      osc.type = accent ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(accent ? 1400 : 900, now);
+      osc.frequency.exponentialRampToValueAtTime(accent ? 700 : 400, now + 0.04);
 
-    gain.gain.setValueAtTime(accent ? 0.9 : 0.6, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+      const baseGain = (accent ? 1.1 : 0.8) * Math.max(0, Math.min(2.5, volumeMultiplier));
+      gain.gain.setValueAtTime(baseGain, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
-    osc.connect(gain);
-    gain.connect(this.masterGain);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
 
-    osc.start(now);
-    osc.stop(now + 0.03);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    } catch (e) {
+      console.warn('Click audio error:', e);
+    }
   }
 }
 

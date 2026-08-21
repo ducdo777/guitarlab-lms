@@ -38,6 +38,7 @@ export const LessonMetronome: React.FC<LessonMetronomeProps> = ({
   const [timeSignature, setTimeSignature] = useState(initialTimeSignature);
   const [currentBeat, setCurrentBeat] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(120); // 0 - 200%
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -59,7 +60,7 @@ export const LessonMetronome: React.FC<LessonMetronomeProps> = ({
         setCurrentBeat((prev) => {
           const next = (prev % timeSignature) + 1;
           if (!isMuted) {
-            audioEngine.playClick(next === 1);
+            audioEngine.playClick(next === 1, volume / 100);
           }
           return next;
         });
@@ -72,7 +73,7 @@ export const LessonMetronome: React.FC<LessonMetronomeProps> = ({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, bpm, timeSignature, isMuted]);
+  }, [isPlaying, bpm, timeSignature, isMuted, volume]);
 
   const updateBpm = (newBpm: number) => {
     const clamped = Math.max(40, Math.min(220, newBpm));
@@ -284,14 +285,20 @@ export const LessonMetronome: React.FC<LessonMetronomeProps> = ({
           
           <div className="flex items-center gap-1.5">
             <button
+              onClick={() => updateBpm(bpm - 10)}
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
+            >
+              -10
+            </button>
+            <button
               onClick={() => updateBpm(bpm - 5)}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
             >
               -5
             </button>
             <button
               onClick={() => updateBpm(bpm - 1)}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
             >
               -1
             </button>
@@ -300,7 +307,7 @@ export const LessonMetronome: React.FC<LessonMetronomeProps> = ({
           {/* Tap Tempo Button */}
           <button
             onClick={handleTap}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500/30 to-amber-600/30 hover:from-amber-500/50 hover:to-amber-600/50 text-amber-300 font-extrabold text-xs border border-amber-400/40 shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
+            className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/30 to-amber-600/30 hover:from-amber-500/50 hover:to-amber-600/50 text-amber-300 font-extrabold text-xs border border-amber-400/40 shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
           >
             <span>👆 Bấm Nhịp (Tap Tempo)</span>
           </button>
@@ -308,18 +315,41 @@ export const LessonMetronome: React.FC<LessonMetronomeProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => updateBpm(bpm + 1)}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
             >
               +1
             </button>
             <button
               onClick={() => updateBpm(bpm + 5)}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
             >
               +5
             </button>
+            <button
+              onClick={() => updateBpm(bpm + 10)}
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-black text-xs transition-all active:scale-95"
+            >
+              +10
+            </button>
           </div>
 
+        </div>
+
+        {/* Metronome Sound Volume */}
+        <div className="pt-2 flex items-center justify-between gap-3 bg-white/5 px-3 py-2 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-300 shrink-0">
+            <Volume2 className="w-4 h-4 text-amber-400" />
+            <span>Âm Lượng Gõ:</span>
+            <span className="text-amber-400 font-mono font-bold">{volume}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={200}
+            value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+            className="flex-1 max-w-xs h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400"
+          />
         </div>
 
         {/* Quick Speed Presets */}
