@@ -390,6 +390,8 @@ export default function AdminPage() {
 
           const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Bài ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
           const dbTheory = [{ heading: 'Nội dung bài học', body: theoryText }];
+          const targetBpm = Number(dbItem?.target_bpm) || 80;
+          const timeSig = Number(dbItem?.time_signature) || 4;
 
           return {
             id: Number(dbItem.id),
@@ -402,7 +404,11 @@ export default function AdminPage() {
             y: 0,
             completed: false,
             unlocked: true,
+            target_bpm: targetBpm,
+            time_signature: timeSig,
             content: {
+              bpm: targetBpm,
+              timeSignature: timeSig,
               theory: dbTheory,
               practice: dbPractice,
               youtubeVideoId: dbPractice[0]?.youtubeId || dbItem.youtube_video_id || 'dQw4w9WgXcQ',
@@ -432,8 +438,8 @@ export default function AdminPage() {
 
     try {
       await sql`
-        INSERT INTO sessions (id, course_id, title, subtitle, icon, order_index)
-        VALUES (${newSessId}, ${editorCourseId}, ${newTitle}, ${newSubtitle}, '🎸', ${nextOrderIndex})
+        INSERT INTO sessions (id, course_id, title, subtitle, icon, target_bpm, time_signature, order_index)
+        VALUES (${newSessId}, ${editorCourseId}, ${newTitle}, ${newSubtitle}, '🎸', 80, 4, ${nextOrderIndex})
       `;
 
       await sql`
@@ -491,9 +497,11 @@ export default function AdminPage() {
           ? sess.content.theory 
           : (sess.content.theory?.[0]?.body || '');
         const practiceJson = JSON.stringify(sess.content.practice || []);
+        const targetBpm = sess.content.bpm || sess.target_bpm || 80;
+        const timeSig = sess.content.timeSignature || sess.time_signature || 4;
 
         await sql`
-          INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, theory_content, practice, chords, exercises, order_index)
+          INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, theory_content, practice, chords, exercises, target_bpm, time_signature, order_index)
           VALUES (
             ${sess.id}, 
             ${editorCourseId}, 
@@ -505,6 +513,8 @@ export default function AdminPage() {
             ${practiceJson}::jsonb, 
             ${chordsArr}, 
             ${exercisesArr}::jsonb,
+            ${targetBpm},
+            ${timeSig},
             ${idx + 1}
           )
           ON CONFLICT (id) DO UPDATE SET 
@@ -516,10 +526,12 @@ export default function AdminPage() {
             practice = EXCLUDED.practice,
             chords = EXCLUDED.chords,
             exercises = EXCLUDED.exercises,
+            target_bpm = EXCLUDED.target_bpm,
+            time_signature = EXCLUDED.time_signature,
             order_index = EXCLUDED.order_index
         `;
       }
-      showToast(`Đã lưu toàn bộ nội dung bài học, video & bài tập cho khóa ${editorCourseId} lên CSDL Neon!`);
+      showToast(`Đã lưu toàn bộ nội dung bài học, metronome, video & bài tập cho khóa ${editorCourseId} lên CSDL Neon!`);
     } catch (e: any) {
       console.warn('Neon DB session update error:', e);
       alert('Lỗi lưu bài học: ' + e.message);
@@ -1281,7 +1293,127 @@ export default function AdminPage() {
                   ))}
                 </div>
 
-                {/* ══ 1. HỢP ÂM TẬP LUYỆN (PRACTICE CHORDS SELECTOR) ══ */}
+                {/* ══ 1. CẤU HÌNH NHỊP METRONOME (METRONOME BPM & TIME SIGNATURE) ══ */}
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>⏱️ Cấu Hình Bộ Giữ Nhịp Metronome Chuẩn:</span>
+                    </h3>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                      Tốc độ luyện tập mặc định cho học viên
+                    </span>
+                  </div>
+
+                  <div className="p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 space-y-4 shadow-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      
+                      {/* BPM Input */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                          Tốc Độ Nhịp Chuẩn (BPM: 40 - 220):
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={40}
+                            max={220}
+                            value={activeSession.content.bpm || activeSession.target_bpm || 80}
+                            onChange={e => {
+                              const val = Math.max(40, Math.min(220, Number(e.target.value) || 80));
+                              setSessions(sessions.map(s => {
+                                if (s.id === activeSession.id) {
+                                  return {
+                                    ...s,
+                                    target_bpm: val,
+                                    content: { ...s.content, bpm: val }
+                                  };
+                                }
+                                return s;
+                              }));
+                            }}
+                            className="w-28 bg-white/10 border border-amber-400/40 rounded-xl px-3 py-2 text-base font-mono font-black text-amber-400 outline-none text-center"
+                          />
+                          <span className="text-xs font-bold text-slate-400">BPM</span>
+                        </div>
+                      </div>
+
+                      {/* Time Signature */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                          Loại Nhịp Phách (Time Signature):
+                        </label>
+                        <div className="flex items-center gap-2">
+                          {[2, 3, 4, 6].map(ts => {
+                            const currentTs = activeSession.content.timeSignature || activeSession.time_signature || 4;
+                            const isActive = currentTs === ts;
+                            return (
+                              <button
+                                key={ts}
+                                type="button"
+                                onClick={() => {
+                                  setSessions(sessions.map(s => {
+                                    if (s.id === activeSession.id) {
+                                      return {
+                                        ...s,
+                                        time_signature: ts,
+                                        content: { ...s.content, timeSignature: ts }
+                                      };
+                                    }
+                                    return s;
+                                  }));
+                                }}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all border ${
+                                  isActive
+                                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm scale-105'
+                                    : 'bg-white/10 text-slate-300 border-white/10 hover:bg-white/20'
+                                }`}
+                              >
+                                {ts}/4
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-white/10">
+                      <span className="text-[10px] font-extrabold text-slate-400">Gợi ý nhanh:</span>
+                      {[
+                        { bpm: 60, ts: 4, label: 'Luyện Bấm (60 BPM)' },
+                        { bpm: 72, ts: 3, label: 'Fingerpicking 3/4 (72 BPM)' },
+                        { bpm: 75, ts: 4, label: 'Ballad (75 BPM)' },
+                        { bpm: 90, ts: 4, label: 'Pop Vừa (90 BPM)' },
+                        { bpm: 105, ts: 4, label: 'Disco (105 BPM)' },
+                        { bpm: 125, ts: 4, label: 'Solo (125 BPM)' },
+                      ].map(preset => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            setSessions(sessions.map(s => {
+                              if (s.id === activeSession.id) {
+                                return {
+                                  ...s,
+                                  target_bpm: preset.bpm,
+                                  time_signature: preset.ts,
+                                  content: { ...s.content, bpm: preset.bpm, timeSignature: preset.ts }
+                                };
+                              }
+                              return s;
+                            }));
+                          }}
+                          className="px-2.5 py-1 bg-white/5 hover:bg-white/15 text-slate-300 rounded-lg text-[10px] font-bold border border-white/10 transition-colors"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ══ 2. HỢP ÂM TẬP LUYỆN (PRACTICE CHORDS SELECTOR) ══ */}
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Hợp Âm Tập Luyện Cần Bấm (Chords):</h3>

@@ -4,6 +4,7 @@ import type { Session } from './data/questData';
 import { CHORD_DATABASE } from './data/musicData';
 import { ChordDiagram } from './components/studio/ChordDiagram';
 import { WebcamRecorder } from './components/studio/WebcamRecorder';
+import { LessonMetronome } from './components/studio/LessonMetronome';
 import { sql, initNeonSchema } from './lib/neon';
 import { 
   BookOpen, 
@@ -124,6 +125,8 @@ export default function GuitarQuest({ user }: Props) {
 
             const theoryText = dbItem?.theory_content || `Chào mừng bạn đến với Bài ${sessNum}. Hãy theo dõi video hướng dẫn bên dưới và hoàn thành bài tập nộp cho Giảng viên nhé!`;
             const dbTheory = [{ heading: 'Nội dung bài học', body: theoryText }];
+            const targetBpm = Number(dbItem?.target_bpm) || 80;
+            const timeSig = Number(dbItem?.time_signature) || 4;
 
             return {
               id: Number(dbItem.id),
@@ -136,7 +139,11 @@ export default function GuitarQuest({ user }: Props) {
               y: 0,
               completed: isDone,
               unlocked: isDone || sessNum === 1 || completedIds.has(Number(dbSessions[idx - 1]?.id)),
+              target_bpm: targetBpm,
+              time_signature: timeSig,
               content: {
+                bpm: targetBpm,
+                timeSignature: timeSig,
                 theory: dbTheory,
                 practice: dbPractice,
                 youtubeVideoId: dbPractice[0]?.youtubeId || dbItem.youtube_video_id || 'dQw4w9WgXcQ',
@@ -524,7 +531,16 @@ export default function GuitarQuest({ user }: Props) {
                   </section>
                 )}
 
-                {/* 2. Lý Thuyết & Hợp Âm */}
+                {/* 2. Bộ Giữ Nhịp Metronome Thực Hành */}
+                <section>
+                  <LessonMetronome
+                    initialBpm={selectedSession.content.bpm || selectedSession.target_bpm || 80}
+                    initialTimeSignature={selectedSession.content.timeSignature || selectedSession.time_signature || 4}
+                    sessionTitle={`Bài ${selectedSession.id}: ${selectedSession.title}`}
+                  />
+                </section>
+
+                {/* 3. Lý Thuyết & Hợp Âm */}
                 <section className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">

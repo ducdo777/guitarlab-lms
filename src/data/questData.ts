@@ -15,12 +15,17 @@ export interface Session {
   y: number;
   unlocked: boolean;
   completed: boolean;
+  target_bpm?: number;
+  time_signature?: number;
   content: {
+    bpm?: number;
+    timeSignature?: number;
     theory: { heading: string; body: string; youtubeId?: string }[];
     practice: { heading: string; body: string; duration?: string; youtubeId?: string }[];
     chords?: {
       youtubeId?: string;
       symbols: string[];
+      title?: string;
     };
     exercises: Exercise[];
   };
@@ -31,7 +36,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 1, icon: '🎸', xp: 100, color: '#34c759',
     title: 'Bài 1', subtitle: 'Làm Quen Đàn Guitar',
     x: 25, y: 80, unlocked: true, completed: false,
+    target_bpm: 60, time_signature: 4,
     content: {
+      bpm: 60, timeSignature: 4,
       theory: [
         {
           heading: '1. Các bộ phận chính của đàn Guitar',
@@ -69,7 +76,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 2, icon: '✋', xp: 150, color: '#007AFF',
     title: 'Bài 2', subtitle: 'Hợp Âm Em & Am',
     x: 75, y: 65, unlocked: false, completed: false,
+    target_bpm: 60, time_signature: 4,
     content: {
+      bpm: 60, timeSignature: 4,
       theory: [
         {
           heading: '1. Hợp Âm Em (E Minor) — Dễ nhất',
@@ -108,7 +117,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 3, icon: '🎵', xp: 200, color: '#FF9F0A',
     title: 'Bài 3', subtitle: 'Hợp Âm G, C, D',
     x: 30, y: 53, unlocked: false, completed: false,
+    target_bpm: 70, time_signature: 4,
     content: {
+      bpm: 70, timeSignature: 4,
       theory: [
         {
           heading: '1. Hợp Âm G Major',
@@ -151,7 +162,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 4, icon: '🥁', xp: 250, color: '#FF375F',
     title: 'Bài 4', subtitle: 'Kỹ Thuật Quạt Dây',
     x: 75, y: 42, unlocked: false, completed: false,
+    target_bpm: 105, time_signature: 4,
     content: {
+      bpm: 105, timeSignature: 4,
       theory: [
         {
           heading: '1. Cách cầm Pick đúng kỹ thuật',
@@ -189,7 +202,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 5, icon: '🔄', xp: 300, color: '#5856D6',
     title: 'Bài 5', subtitle: 'Chuyển Hợp Âm Mượt Mà',
     x: 25, y: 28, unlocked: false, completed: false,
+    target_bpm: 80, time_signature: 4,
     content: {
+      bpm: 80, timeSignature: 4,
       theory: [
         {
           heading: '1. Nguyên tắc "Nhìn trước" (Look Ahead)',
@@ -230,7 +245,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 6, icon: '🎶', xp: 350, color: '#FF6B00',
     title: 'Bài 6', subtitle: 'Fingerpicking Cơ Bản',
     x: 50, y: 25, unlocked: false, completed: false,
+    target_bpm: 72, time_signature: 3,
     content: {
+      bpm: 72, timeSignature: 3,
       theory: [
         {
           heading: '1. Vị Trí Ngón Tay Phải',
@@ -268,7 +285,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 7, icon: '⚡', xp: 450, color: '#FF2D55',
     title: 'Bài 7', subtitle: 'Barre Chord F & Bm',
     x: 65, y: 18, unlocked: false, completed: false,
+    target_bpm: 55, time_signature: 4,
     content: {
+      bpm: 55, timeSignature: 4,
       theory: [
         {
           heading: '1. Barre Chord Là Gì?',
@@ -307,7 +326,9 @@ const DEFAULT_SESSIONS: Session[] = [
     id: 8, icon: '🌟', xp: 500, color: '#BF5AF2',
     title: 'Bài 8', subtitle: 'Gam Pentatonic & Solo',
     x: 65, y: 10, unlocked: false, completed: false,
+    target_bpm: 85, time_signature: 4,
     content: {
+      bpm: 85, timeSignature: 4,
       theory: [
         {
           heading: '1. Am Pentatonic Scale — Gam Solo #1',

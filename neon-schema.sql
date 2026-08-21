@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS courses (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. BẢNG 8 BUỔI HỌC (Sessions)
+-- 3. BẢNG BÀI HỌC (Sessions)
 CREATE TABLE IF NOT EXISTS sessions (
   id INT PRIMARY KEY,
   course_id VARCHAR(100) REFERENCES courses(id) ON DELETE CASCADE,
@@ -32,16 +32,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   icon VARCHAR(50),
   youtube_video_id VARCHAR(100),
   theory_content TEXT,
+  practice JSONB,
   chords TEXT[], -- Ví dụ: ARRAY['Em', 'Am', 'C', 'D', 'G']
-  order_index INT UNIQUE
-);
-
--- 4. BẢNG BÀI TẬP THỰC HÀNH TỪNG BUỔI (Exercises)
-CREATE TABLE IF NOT EXISTS exercises (
-  id VARCHAR(100) PRIMARY KEY,
-  session_id INT REFERENCES sessions(id) ON DELETE CASCADE,
-  exercise_text TEXT NOT NULL,
-  order_index INT DEFAULT 1
+  exercises JSONB,
+  target_bpm INT DEFAULT 80,
+  time_signature INT DEFAULT 4,
+  order_index INT
 );
 
 -- 5. BẢNG TIẾN ĐỘ HỌC VIÊN (Student Progress)
@@ -75,7 +71,7 @@ CREATE INDEX IF NOT EXISTS idx_submissions_session ON submissions(session_id);
 CREATE INDEX IF NOT EXISTS idx_progress_student ON student_progress(student_id);
 
 -- =====================================================================
--- SEED DATA MẪU KHÓA HỌC GUITAR 8 BUỔI
+-- SEED DATA MẪU KHÓA HỌC GUITAR 8 BÀI
 -- =====================================================================
 
 INSERT INTO courses (id, title, subtitle, description, total_sessions)
@@ -87,13 +83,13 @@ VALUES (
   8
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, chords, order_index) VALUES
-(1, 'guitar-8-buoi', 'Làm Quen Đàn Guitar & Nhịp Căn Bản', 'Tư thế cầm đàn, gảy 6 dây mở và lắng nghe âm sắc', '🎸', 'dQw4w9WgXcQ', ARRAY['Em', 'Am'], 1),
-(2, 'guitar-8-buoi', 'Hợp Âm Em, Am & Đệm Hát Bài Đầu Tiên', 'Bấm 2 hợp âm huyền thoại và tập chuyển nhịp 4/4', '🎵', 'dQw4w9WgXcQ', ARRAY['Em', 'Am', 'C'], 2),
-(3, 'guitar-8-buoi', 'Hợp Âm G, C, D & Chuyển Hợp Âm Mượt Mà', 'Hoàn thiện bộ 5 hợp âm quốc dân đệm hàng trăm bài hát', '🎶', 'dQw4w9WgXcQ', ARRAY['G', 'C', 'D', 'Em', 'Am'], 3),
-(4, 'guitar-8-buoi', 'Kỹ Thuật Quạt Dây (Strumming) Disco & Pop', 'Tạo tiết tấu sôi động bằng tay phải quạt dây', '⚡', 'dQw4w9WgXcQ', ARRAY['G', 'C', 'D', 'Em', 'Am'], 4),
-(5, 'guitar-8-buoi', 'Hợp Âm F, Bm & Quạt Điệu Slow Rock', 'Luyện tập chuyển hợp âm nhanh và điệu 6/8', '🎼', 'dQw4w9WgXcQ', ARRAY['F', 'Bm', 'G', 'C', 'D'], 5),
-(6, 'guitar-8-buoi', 'Kỹ Thuật Rải Dây (Fingerpicking) & Nhịp 3/4', 'Rải dây nhẹ nhàng truyền cảm cho bài hát Pop Ballad', '✨', 'dQw4w9WgXcQ', ARRAY['C', 'G', 'Am', 'F'], 6),
-(7, 'guitar-8-buoi', 'Hợp Âm Chặn (Barre Chords) Căn Bản', 'Chinh phục hợp âm chặn và làm chủ cần đàn', '🔥', 'dQw4w9WgXcQ', ARRAY['F', 'Bm', 'Fm'], 7),
-(8, 'guitar-8-buoi', 'Gam Pentatonic, Solo Đơn Giản & Tổng Kết', 'Tự nhìn hợp âm đệm hát bài yêu thích và solo dạo đầu', '🏆', 'dQw4w9WgXcQ', ARRAY['Am', 'C', 'G', 'F', 'Dm'], 8)
+INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, chords, target_bpm, time_signature, order_index) VALUES
+(1, 'guitar-8-buoi', 'Làm Quen Đàn Guitar & Nhịp Căn Bản', 'Tư thế cầm đàn, gảy 6 dây mở và lắng nghe âm sắc', '🎸', 'dQw4w9WgXcQ', ARRAY['Em', 'Am'], 60, 4, 1),
+(2, 'guitar-8-buoi', 'Hợp Âm Em, Am & Đệm Hát Bài Đầu Tiên', 'Bấm 2 hợp âm huyền thoại và tập chuyển nhịp 4/4', '🎵', 'dQw4w9WgXcQ', ARRAY['Em', 'Am', 'C'], 60, 4, 2),
+(3, 'guitar-8-buoi', 'Hợp Âm G, C, D & Chuyển Hợp Âm Mượt Mà', 'Hoàn thiện bộ 5 hợp âm quốc dân đệm hàng trăm bài hát', '🎶', 'dQw4w9WgXcQ', ARRAY['G', 'C', 'D', 'Em', 'Am'], 70, 4, 3),
+(4, 'guitar-8-buoi', 'Kỹ Thuật Quạt Dây (Strumming) Disco & Pop', 'Tạo tiết tấu sôi động bằng tay phải quạt dây', '⚡', 'dQw4w9WgXcQ', ARRAY['G', 'C', 'D', 'Em', 'Am'], 105, 4, 4),
+(5, 'guitar-8-buoi', 'Hợp Âm F, Bm & Quạt Điệu Slow Rock', 'Luyện tập chuyển hợp âm nhanh và điệu 6/8', '🎼', 'dQw4w9WgXcQ', ARRAY['F', 'Bm', 'G', 'C', 'D'], 80, 4, 5),
+(6, 'guitar-8-buoi', 'Kỹ Thuật Rải Dây (Fingerpicking) & Nhịp 3/4', 'Rải dây nhẹ nhàng truyền cảm cho bài hát Pop Ballad', '✨', 'dQw4w9WgXcQ', ARRAY['C', 'G', 'Am', 'F'], 72, 3, 6),
+(7, 'guitar-8-buoi', 'Hợp Âm Chặn (Barre Chords) Căn Bản', 'Chinh phục hợp âm chặn và làm chủ cần đàn', '🔥', 'dQw4w9WgXcQ', ARRAY['F', 'Bm', 'Fm'], 55, 4, 7),
+(8, 'guitar-8-buoi', 'Gam Pentatonic, Solo Đơn Giản & Tổng Kết', 'Tự nhìn hợp âm đệm hát bài yêu thích và solo dạo đầu', '🏆', 'dQw4w9WgXcQ', ARRAY['Am', 'C', 'G', 'F', 'Dm'], 85, 4, 8)
 ON CONFLICT (id) DO NOTHING;
