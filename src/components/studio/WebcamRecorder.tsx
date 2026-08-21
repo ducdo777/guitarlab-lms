@@ -298,8 +298,15 @@ export const WebcamRecorder: React.FC<Props> = ({
 
     // 1. Draw mirrored webcam frame
     ctx.save();
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, -width, 0, width, height);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, width, height);
+
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -width, 0, width, height);
+      ctx.restore();
+    }
     ctx.restore();
 
     // 2. Draw Metronome HUD Badge if enabled
@@ -414,9 +421,13 @@ export const WebcamRecorder: React.FC<Props> = ({
   }, [recording, embedMetronome, playMetronomeAudio, metronomeBpm, metronomeTimeSig]);
 
   // Start Recording
-  const startRecording = () => {
+  const startRecording = async () => {
     if (!stream) return;
     try {
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume();
+      }
+
       const mimeType = getSupportedMimeType();
       const options = mimeType ? { mimeType } : undefined;
 
@@ -427,10 +438,11 @@ export const WebcamRecorder: React.FC<Props> = ({
         canvas.width = 1280;
         canvas.height = 720;
 
+        // Perform initial draw
+        drawMetronomeOverlay();
+
         const canvasStream = canvas.captureStream(30);
-        const audioTracks = audioDestRef.current
-          ? audioDestRef.current.stream.getAudioTracks()
-          : stream.getAudioTracks();
+        const audioTracks = stream.getAudioTracks();
 
         recordStream = new MediaStream([
           ...canvasStream.getVideoTracks(),
@@ -443,9 +455,7 @@ export const WebcamRecorder: React.FC<Props> = ({
         };
         loop();
       } else {
-        const audioTracks = audioDestRef.current
-          ? audioDestRef.current.stream.getAudioTracks()
-          : stream.getAudioTracks();
+        const audioTracks = stream.getAudioTracks();
 
         recordStream = new MediaStream([
           ...stream.getVideoTracks(),
@@ -457,19 +467,26 @@ export const WebcamRecorder: React.FC<Props> = ({
       const chunks: BlobPart[] = [];
       
       recorder.ondataavailable = e => {
-        if (e.data && e.data.size > 0) chunks.push(e.data);
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
       };
       
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+        if (animFrameRef.current) {
+          cancelAnimationFrame(animFrameRef.current);
+        }
+        const blobType = mimeType || 'video/webm';
+        const blob = new Blob(chunks, { type: blobType });
+        console.log('✅ Video recorded successfully, size:', blob.size, 'bytes');
         setVideoBlob(blob);
-        setVideoUrl(URL.createObjectURL(blob));
+        const url = URL.createObjectURL(blob);
+        setVideoUrl(url);
         setStatus('REVIEW');
-        stopCamera();
       };
 
       mediaRecorderRef.current = recorder;
-      recorder.start(500);
+      recorder.start(250);
       setRecording(true);
       setStatus('RECORDING');
       setTimer(0);
@@ -592,8 +609,22 @@ export const WebcamRecorder: React.FC<Props> = ({
   if (status === 'IDLE' || status === 'RECORDING') {
     return (
       <>
-        {/* Hidden Canvas for Compositing Video + Metronome Overlay */}
-        <canvas ref={canvasRef} className="hidden" />
+        {/* Offscreen Canvas for Compositing Video + Metronome Overlay (Not display:none to ensure active frame rendering) */}
+        <canvas 
+          ref={canvasRef} 
+          width={1280} 
+          height={720} 
+          style={{ 
+            position: 'fixed', 
+            top: '-9999px', 
+            left: '-9999px', 
+            width: '1280px', 
+            height: '720px', 
+            opacity: 0, 
+            pointerEvents: 'none', 
+            zIndex: -100 
+          }} 
+        />
 
         {/* Outer Wrapper with Fullscreen Expanded Mode Handling */}
         <div className={`w-full transition-all duration-300 ${
@@ -1029,8 +1060,19 @@ export const WebcamRecorder: React.FC<Props> = ({
           </span>
         </div>
         
-        <div className="aspect-video w-full bg-black">
-          <video src={videoUrl!} controls className="w-full h-full object-cover" />
+        <div className="aspect-video w-full bg-black flex items-center justify-center">
+          {videoUrl ? (
+            <video 
+              key={videoUrl} 
+              src={videoUrl} 
+              controls 
+              autoPlay 
+              playsInline 
+              className="w-full h-full object-contain" 
+            />
+          ) : (
+            <div className="text-white text-xs font-bold animate-pulse">Đang tải video thực hành...</div>
+          )}
         </div>
         
         <div className="p-3.5 sm:p-5 flex gap-3 bg-slate-50 border-t border-slate-200 flex-col sm:flex-row">
