@@ -62,6 +62,13 @@ export default function GuitarQuest({ user }: Props) {
           enrolledCoursesList = (dbCourses || []).filter((c: any) => enrolledCourseIds.has(c.id));
           if (enrolledCoursesList.length > 0) {
             setAvailableCourses(enrolledCoursesList);
+            // Auto-select the first enrolled non-default course if student has one,
+            // or keep current selection if already set to an enrolled course
+            const currentIsEnrolled = enrolledCoursesList.some((c: any) => c.id === activeCourseId);
+            if (!currentIsEnrolled) {
+              const firstNonDefault = enrolledCoursesList.find((c: any) => c.id !== 'guitar-8-buoi');
+              setActiveCourseId(firstNonDefault ? firstNonDefault.id : 'guitar-8-buoi');
+            }
           } else {
             setAvailableCourses([{ id: 'guitar-8-buoi', title: 'Khoá Học Guitar Đệm Hát 8 Buổi', total_sessions: 8 }]);
           }
@@ -72,7 +79,7 @@ export default function GuitarQuest({ user }: Props) {
         // 2. Fetch sessions for active course from Neon DB
         const dbSessions = await sql`
           SELECT * FROM sessions 
-          WHERE course_id = ${activeCourseId} OR course_id IS NULL OR course_id = ''
+          WHERE course_id = ${activeCourseId} OR (course_id IS NULL AND ${activeCourseId} = 'guitar-8-buoi')
           ORDER BY order_index ASC, id ASC
         `;
         
@@ -178,12 +185,13 @@ export default function GuitarQuest({ user }: Props) {
 
   // Mark Session as Completed
   const handleCompleteSession = async (session: Session) => {
-    const updated = sessions.map(s => {
+    const updated = sessions.map((s, idx) => {
       if (s.id === session.id) {
         return { ...s, completed: true };
       }
-      // Unlock next session if current is completed
-      if (s.id === session.id + 1) {
+      // Unlock next session by array index, not by s.id === session.id + 1
+      const completedIdx = sessions.findIndex(ps => ps.id === session.id);
+      if (completedIdx >= 0 && idx === completedIdx + 1) {
         return { ...s, unlocked: true };
       }
       return s;

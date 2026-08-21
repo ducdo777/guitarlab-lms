@@ -610,7 +610,7 @@ export default function AdminPage() {
             </div>
             <div>
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Chương Trình</span>
-              <span className="text-2xl font-black text-[#1b2a47]">8 Buổi Học</span>
+              <span className="text-2xl font-black text-[#1b2a47]">{coursesList.reduce((sum, c) => sum + c.total_sessions, 0) || 8} Buổi Học</span>
             </div>
           </div>
 
@@ -641,7 +641,10 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('editor')}
+            onClick={() => {
+              setActiveTab('editor');
+              fetchSessionsForCourse(editorCourseId);
+            }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
               activeTab === 'editor'
                 ? 'bg-[#1b2a47] text-white shadow-md'
