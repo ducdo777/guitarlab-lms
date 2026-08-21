@@ -683,6 +683,8 @@ export default function GuitarQuest({ user }: Props) {
                   <WebcamRecorder 
                     sessionId={selectedSession.id} 
                     studentId={studentId} 
+                    defaultBpm={selectedSession.content.bpm || selectedSession.target_bpm || 80}
+                    defaultTimeSignature={selectedSession.content.timeSignature || selectedSession.time_signature || 4}
                     onSubmitted={() => {
                       setRefreshKey(k => k + 1);
                     }}
