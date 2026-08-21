@@ -38,6 +38,7 @@ export const WebcamRecorder: React.FC<Props> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const vuAnimFrameRef = useRef<number | null>(null);
   
   // Audio context & analysis refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -114,17 +115,26 @@ export const WebcamRecorder: React.FC<Props> = ({
   };
 
   // Setup Web Audio Graph for VU meter & Monitoring
-  const setupAudioGraph = (mediaStream: MediaStream) => {
+  const setupAudioGraph = async (mediaStream: MediaStream) => {
     try {
+      if (vuAnimFrameRef.current) {
+        cancelAnimationFrame(vuAnimFrameRef.current);
+      }
+
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioContextClass();
       audioCtxRef.current = ctx;
+
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
 
       const source = ctx.createMediaStreamSource(mediaStream);
       audioSourceRef.current = source;
 
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.3;
       analyserRef.current = analyser;
 
       const gain = ctx.createGain();
@@ -144,19 +154,33 @@ export const WebcamRecorder: React.FC<Props> = ({
       gain.connect(monitorGain);
       monitorGain.connect(ctx.destination);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const timeData = new Uint8Array(analyser.fftSize);
+
       const checkLevel = () => {
-        if (analyserRef.current) {
-          analyserRef.current.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+        if (analyserRef.current && audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+          if (audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume();
           }
-          const avg = sum / dataArray.length;
-          const level = Math.min(100, Math.round((avg / 128) * 100));
-          setAudioLevel(level);
+
+          analyserRef.current.getByteTimeDomainData(timeData);
+          let sum = 0;
+          for (let i = 0; i < timeData.length; i++) {
+            const v = (timeData[i] - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / timeData.length);
+          
+          // Sensitivity with micVolume gain multiplier
+          const sensitivity = (micVolume / 100);
+          const rawLevel = rms * 350 * sensitivity;
+          const level = Math.min(100, Math.max(0, Math.round(rawLevel)));
+          
+          setAudioLevel(prev => {
+            if (level > prev) return level;
+            return Math.max(0, Math.round(prev * 0.82 + level * 0.18));
+          });
         }
-        animFrameRef.current = requestAnimationFrame(checkLevel);
+        vuAnimFrameRef.current = requestAnimationFrame(checkLevel);
       };
       checkLevel();
     } catch (e) {
@@ -196,7 +220,7 @@ export const WebcamRecorder: React.FC<Props> = ({
       });
 
       setStream(mediaStream);
-      setupAudioGraph(mediaStream);
+      await setupAudioGraph(mediaStream);
       await loadAudioDevices();
       setStatus('IDLE');
     } catch (err: any) {
@@ -250,6 +274,9 @@ export const WebcamRecorder: React.FC<Props> = ({
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
+      if (vuAnimFrameRef.current) {
+        cancelAnimationFrame(vuAnimFrameRef.current);
+      }
       if (metronomeTimerRef.current) {
         clearInterval(metronomeTimerRef.current);
       }
@@ -269,11 +296,15 @@ export const WebcamRecorder: React.FC<Props> = ({
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
     }
+    if (vuAnimFrameRef.current) {
+      cancelAnimationFrame(vuAnimFrameRef.current);
+    }
     if (metronomeTimerRef.current) {
       clearInterval(metronomeTimerRef.current);
     }
     setCurrentBeat(0);
     currentBeatRef.current = 0;
+    setAudioLevel(0);
     setIsExpanded(false);
   };
 
