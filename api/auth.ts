@@ -2,19 +2,18 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql, hashPassword, verifyPassword, signJwtToken, verifyJwtToken } from './lib/db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-User-Email');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const { action } = req.query;
-
   try {
+    const { action } = req.query;
+
     // 1. POST /api/auth?action=register
     if (req.method === 'POST' && action === 'register') {
       const { fullName, email, password } = req.body || {};
@@ -26,13 +25,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Email và mật khẩu không được để trống!' });
       }
 
-      // Check existing email
       const existing = await sql`SELECT id FROM profiles WHERE LOWER(email) = ${cleanEmail}`;
       if (existing && existing.length > 0) {
         return res.status(400).json({ error: 'Email này đã được đăng ký tài khoản trong hệ thống!' });
       }
 
-      // Hash password with Bcrypt
       const passwordHash = await hashPassword(cleanPassword);
       const userId = `user_${Date.now()}`;
       const role = cleanEmail === 'admin@guitarlab.vn' ? 'SUPER_ADMIN' : 'STUDENT';
@@ -42,7 +39,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         VALUES (${userId}, ${displayName}, ${cleanEmail}, ${passwordHash}, ${role})
       `;
 
-      // Auto enroll in default course
       const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
       const autoEnrollId = `enroll_${cleanEmailKey}_guitar_8_buoi`;
       try {
@@ -80,7 +76,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Mật khẩu không chính xác! Vui lòng thử lại.' });
       }
 
-      // Re-hash with Bcrypt if previously stored in plaintext
       if (profile.password_hash && !profile.password_hash.startsWith('$2')) {
         try {
           const newHash = await hashPassword(cleanPassword);
@@ -103,11 +98,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 3. GET /api/auth?action=me
     if (req.method === 'GET' && action === 'me') {
       const authUser = verifyJwtToken(req.headers.authorization);
-      const userEmailHeader = (req.headers['x-user-email'] as string || '').toLowerCase();
+      const rawHeaderEmail = req.headers['x-user-email'];
+      const userEmailHeader = Array.isArray(rawHeaderEmail) 
+        ? String(rawHeaderEmail[0] || '').toLowerCase() 
+        : String(rawHeaderEmail || '').toLowerCase();
+
       const targetEmail = authUser?.email || userEmailHeader;
 
       if (!targetEmail) {
-        return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
+        return res.status(200).json({ user: null });
       }
 
       const rows = await sql`SELECT id, full_name, email, role, avatar_url FROM profiles WHERE LOWER(email) = ${targetEmail.toLowerCase()}`;
@@ -117,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             user: { id: 'super_admin_001', email: 'admin@guitarlab.vn', full_name: 'Giảng Viên GuitarLab', role: 'SUPER_ADMIN' } 
           });
         }
-        return res.status(404).json({ error: 'Không tìm thấy thông tin tài khoản.' });
+        return res.status(200).json({ user: null });
       }
 
       return res.status(200).json({ user: rows[0] });

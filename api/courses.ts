@@ -5,13 +5,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-User-Email');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action, courseId, email } = req.query;
-
   try {
+    const { action, courseId, email } = req.query;
+
     // 1. GET /api/courses?action=list&email=...
     if (req.method === 'GET' && action === 'list') {
       const studentEmail = String(email || '').trim().toLowerCase();

@@ -9,22 +9,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action, courseId } = req.query;
-
-  // Authorization Check: Check JWT token or header email for super admin
-  const authUser = verifyJwtToken(req.headers.authorization);
-  const userEmailHeader = (req.headers['x-user-email'] as string || '').toLowerCase();
-  
-  const isSuperAdmin = 
-    (authUser && authUser.role === 'SUPER_ADMIN') || 
-    (authUser && authUser.email === 'admin@guitarlab.vn') ||
-    userEmailHeader === 'admin@guitarlab.vn';
-
-  if (!isSuperAdmin) {
-    return res.status(403).json({ error: 'Truy cập bị từ chối. Chỉ dành cho tài khoản Super Admin!' });
-  }
-
   try {
+    const { action, courseId } = req.query;
+
+    // Authorization Check: Check JWT token or header email for super admin
+    const authUser = verifyJwtToken(req.headers.authorization);
+    const rawHeaderEmail = req.headers['x-user-email'];
+    const userEmailHeader = Array.isArray(rawHeaderEmail) 
+      ? String(rawHeaderEmail[0] || '').toLowerCase() 
+      : String(rawHeaderEmail || '').toLowerCase();
+    
+    const isSuperAdmin = 
+      (authUser && authUser.role === 'SUPER_ADMIN') || 
+      (authUser && authUser.email.toLowerCase() === 'admin@guitarlab.vn') ||
+      userEmailHeader === 'admin@guitarlab.vn';
+
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'Truy cập bị từ chối. Chỉ dành cho tài khoản Super Admin!' });
+    }
+
     // 1. GET /api/admin?action=data (Fetch all admin data)
     if (req.method === 'GET' && action === 'data') {
       const [submissions, profiles, progress, courses, userEnrollments] = await Promise.all([
@@ -87,7 +90,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         VALUES (${id}, ${title}, ${subtitle}, ${num})
       `;
 
-      // Auto generate initial sessions for the course
       for (let i = 1; i <= num; i++) {
         const sessionId = Math.floor(Math.random() * 900000) + 100000;
         await sql`

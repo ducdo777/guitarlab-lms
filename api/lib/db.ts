@@ -7,7 +7,6 @@ const rawUrl =
   process.env.VITE_DATABASE_URL || 
   'postgresql://neondb_owner:npg_o45GYDwXyvBf@ep-polished-dream-a15lrtp1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
 
-// Clean connection string to avoid fetch channel binding incompatibilities
 const cleanDatabaseUrl = rawUrl.replace('&channel_binding=require', '');
 
 export const sql = neon(cleanDatabaseUrl);
@@ -18,10 +17,13 @@ export function signJwtToken(payload: { id: string; email: string; full_name: st
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
-export function verifyJwtToken(authHeader?: string) {
+export function verifyJwtToken(authHeader?: any) {
   if (!authHeader) return null;
-  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
   try {
+    const headerStr = Array.isArray(authHeader) ? String(authHeader[0] || '') : String(authHeader || '');
+    if (!headerStr) return null;
+    const token = headerStr.startsWith('Bearer ') ? headerStr.substring(7).trim() : headerStr.trim();
+    if (!token || token === 'null' || token === 'undefined') return null;
     return jwt.verify(token, JWT_SECRET) as { id: string; email: string; full_name: string; role: string };
   } catch (err) {
     return null;
