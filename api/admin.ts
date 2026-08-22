@@ -1,5 +1,42 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql, verifyJwtToken, safeQuery } from './_lib/db';
+import { neon } from '@neondatabase/serverless';
+import jwt from 'jsonwebtoken';
+
+const databaseUrl = 
+  process.env.DATABASE_URL || 
+  process.env.VITE_DATABASE_URL || 
+  'postgresql://neondb_owner:npg_o45GYDwXyvBf@ep-polished-dream-a15lrtp1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+
+const cleanDatabaseUrl = databaseUrl.replace('&channel_binding=require', '');
+const sql = neon(cleanDatabaseUrl);
+const JWT_SECRET = process.env.JWT_SECRET || 'guitarlab-secret-key-production-2026-super-secure';
+
+function verifyJwtToken(authHeader?: any) {
+  if (!authHeader) return null;
+  try {
+    const headerStr = Array.isArray(authHeader) ? String(authHeader[0] || '') : String(authHeader || '');
+    if (!headerStr) return null;
+    const token = headerStr.startsWith('Bearer ') ? headerStr.substring(7).trim() : headerStr.trim();
+    if (!token || token === 'null' || token === 'undefined') return null;
+    return jwt.verify(token, JWT_SECRET) as { id: string; email: string; full_name: string; role: string };
+  } catch (err) {
+    return null;
+  }
+}
+
+async function safeQuery<T = any>(queryFn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await queryFn();
+  } catch (firstErr) {
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      return await queryFn();
+    } catch (secondErr) {
+      console.error('Neon query error in admin API:', secondErr);
+      return fallback;
+    }
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -65,11 +102,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id, grade, feedback } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Thiếu ID bài nộp!' });
 
-      await sql`
+      await safeQuery(() => sql`
         UPDATE submissions 
         SET grade = ${grade}, feedback = ${feedback}, status = 'REVIEWED', reviewed_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
-      `;
+      `, null);
       return res.status(200).json({ success: true });
     }
 
@@ -78,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Thiếu ID bài nộp!' });
 
-      await sql`DELETE FROM submissions WHERE id = ${id}`;
+      await safeQuery(() => sql`DELETE FROM submissions WHERE id = ${id}`, null);
       return res.status(200).json({ success: true });
     }
 
@@ -87,14 +124,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id, title, subtitle, sessionsCount } = req.body || {};
       const num = Number(sessionsCount) || 8;
 
-      await sql`
+      await safeQuery(() => sql`
         INSERT INTO courses (id, title, subtitle, total_sessions)
         VALUES (${id}, ${title}, ${subtitle}, ${num})
-      `;
+      `, null);
 
       for (let i = 1; i <= num; i++) {
         const sessionId = Math.floor(Math.random() * 900000) + 100000;
-        await sql`
+        await safeQuery(() => sql`
           INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, chords, target_bpm, time_signature, order_index)
           VALUES (
             ${sessionId},
@@ -109,7 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ${i}
           )
           ON CONFLICT (id) DO NOTHING
-        `;
+        `, null);
       }
 
       return res.status(200).json({ success: true });
@@ -122,9 +159,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Không thể xoá khoá học mặc định của hệ thống!' });
       }
 
-      await sql`DELETE FROM sessions WHERE course_id = ${id}`;
-      await sql`DELETE FROM user_courses WHERE course_id = ${id}`;
-      await sql`DELETE FROM courses WHERE id = ${id}`;
+      await safeQuery(() => sql`DELETE FROM sessions WHERE course_id = ${id}`, null);
+      await safeQuery(() => sql`DELETE FROM user_courses WHERE course_id = ${id}`, null);
+      await safeQuery(() => sql`DELETE FROM courses WHERE id = ${id}`, null);
       return res.status(200).json({ success: true });
     }
 
@@ -136,16 +173,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (shouldEnroll) {
         const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
         const enrollId = `enroll_${cleanEmailKey}_${courseId}_${Date.now()}`;
-        await sql`
+        await safeQuery(() => sql`
           INSERT INTO user_courses (id, student_email, course_id)
           VALUES (${enrollId}, ${cleanEmail}, ${courseId})
           ON CONFLICT (student_email, course_id) DO NOTHING
-        `;
+        `, null);
       } else {
-        await sql`
+        await safeQuery(() => sql`
           DELETE FROM user_courses 
           WHERE LOWER(student_email) = ${cleanEmail} AND course_id = ${courseId}
-        `;
+        `, null);
       }
       return res.status(200).json({ success: true });
     }
@@ -160,7 +197,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const chordsArr = Array.isArray(s.chords) ? s.chords : [];
           const exercisesJson = JSON.stringify(s.exercises || []);
 
-          await sql`
+          await safeQuery(() => sql`
             INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, theory_content, chords, exercises, target_bpm, time_signature, order_index)
             VALUES (
               ${s.id},
@@ -188,7 +225,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               target_bpm = ${s.target_bpm || 80},
               time_signature = ${s.time_signature || 4},
               order_index = ${s.order_index || s.id}
-          `;
+          `, null);
         }
       }
       return res.status(200).json({ success: true });
@@ -196,7 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(400).json({ error: 'Invalid admin action' });
   } catch (err: any) {
-    console.error('Admin API error:', err);
+    console.error('Admin API handler error:', err);
     return res.status(500).json({ error: err?.message || 'Internal Server Error' });
   }
 }

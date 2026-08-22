@@ -1,5 +1,27 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql, safeQuery } from './_lib/db';
+import { neon } from '@neondatabase/serverless';
+
+const databaseUrl = 
+  process.env.DATABASE_URL || 
+  process.env.VITE_DATABASE_URL || 
+  'postgresql://neondb_owner:npg_o45GYDwXyvBf@ep-polished-dream-a15lrtp1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+
+const cleanDatabaseUrl = databaseUrl.replace('&channel_binding=require', '');
+const sql = neon(cleanDatabaseUrl);
+
+async function safeQuery<T = any>(queryFn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await queryFn();
+  } catch (firstErr) {
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      return await queryFn();
+    } catch (secondErr) {
+      console.error('Neon query error in submissions API:', secondErr);
+      return fallback;
+    }
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -30,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 2. POST /api/submissions?action=submit
     if (req.method === 'POST' && action === 'submit') {
-      const { id, studentId, studentName, studentEmail, sessionId, videoUrl } = req.body || {};
+      const { id, studentId: subStudentId, studentName, studentEmail, sessionId, videoUrl } = req.body || {};
 
       if (!studentEmail || !sessionId || !videoUrl) {
         return res.status(400).json({ error: 'Thiếu thông tin nộp bài!' });
@@ -42,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       await safeQuery(() => sql`
         INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status)
-        VALUES (${submissionId}, ${studentId || cleanEmail}, ${displayName}, ${cleanEmail}, ${sessionId}, ${videoUrl}, 'PENDING')
+        VALUES (${submissionId}, ${subStudentId || cleanEmail}, ${displayName}, ${cleanEmail}, ${sessionId}, ${videoUrl}, 'PENDING')
       `, null);
 
       return res.status(200).json({ success: true, id: submissionId });
