@@ -56,20 +56,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           setIsLoggedIn(true);
 
-          // Check admin role
+          // Check admin role via secure API
           try {
-            const { sql, initNeonSchema } = await import('../lib/neon');
-            await initNeonSchema();
-            const rows = await sql`
-              SELECT role FROM profiles WHERE LOWER(email) = ${customEmail.toLowerCase()}
-            `;
-            if (rows && rows.length > 0 && (rows[0].role === 'SUPER_ADMIN' || customEmail.toLowerCase() === 'admin@guitarlab.vn')) {
+            const { api } = await import('../lib/api');
+            const meRes = await api.auth.me();
+            const profile = meRes?.user;
+            if (profile && (profile.role === 'SUPER_ADMIN' || customEmail.toLowerCase() === 'admin@guitarlab.vn')) {
               setIsAdmin(true);
               setUser(prev => prev ? { ...prev, role: 'SUPER_ADMIN' } : prev);
             }
           } catch (err) {
             console.error('Admin role check error:', err);
-            // Still allow student access even if admin check fails
             if (customEmail.toLowerCase() === 'admin@guitarlab.vn') {
               setIsAdmin(true);
             }

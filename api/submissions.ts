@@ -4,7 +4,7 @@ import { sql, ensureSchema, verifyJwtToken } from './lib/db';
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,DELETE');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -48,6 +48,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `;
 
       return res.status(200).json({ success: true, id: submissionId });
+    }
+
+    // 3. POST /api/submissions?action=delete
+    if (req.method === 'POST' && action === 'delete') {
+      const { id } = req.body || {};
+      if (!id) {
+        return res.status(400).json({ error: 'Thiếu ID bài nộp cần xóa!' });
+      }
+
+      await sql`DELETE FROM submissions WHERE id = ${id}`;
+      return res.status(200).json({ success: true });
     }
 
     return res.status(400).json({ error: 'Invalid submissions action' });

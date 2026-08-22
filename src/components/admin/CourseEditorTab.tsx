@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { ChevronRight, Plus, Save, Trash2 } from 'lucide-react';
 import type { CourseItem } from '../../hooks/useAdminData';
 import type { Session } from '../../data/questData';
-import { sql } from '../../lib/neon';
 
 interface Props {
   coursesList: CourseItem[];
@@ -22,38 +21,9 @@ export default function CourseEditorTab({ coursesList, onSave, showToast }: Prop
 
   const fetchSessionsForCourse = async (courseId: string) => {
     try {
-      let dbSessions = await sql`
-        SELECT * FROM sessions 
-        WHERE course_id = ${courseId} OR (course_id IS NULL AND ${courseId} = 'guitar-8-buoi')
-        ORDER BY order_index ASC, id ASC
-      `;
-
-      if (!dbSessions || dbSessions.length === 0) {
-        const targetCourse = coursesList.find(c => c.id === courseId);
-        const totalToCreate = targetCourse?.total_sessions || 8;
-
-        try {
-          for (let i = 1; i <= totalToCreate; i++) {
-            const sessId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 10000) + i;
-            await sql`
-              INSERT INTO sessions (id, course_id, title, subtitle, icon, order_index)
-              VALUES (${sessId}, ${courseId}, ${`Bài ${i}: Bài thực hành ${i}`}, ${`Nội dung hướng dẫn chi tiết cho bài học thứ ${i}`}, '🎸', ${i})
-              ON CONFLICT (id) DO NOTHING
-            `;
-          }
-
-          const retrySessions = await sql`
-            SELECT * FROM sessions 
-            WHERE course_id = ${courseId}
-            ORDER BY order_index ASC, id ASC
-          `;
-          if (retrySessions && retrySessions.length > 0) {
-            dbSessions = retrySessions;
-          }
-        } catch (genErr) {
-          console.warn('Auto generate sessions error:', genErr);
-        }
-      }
+      const { api } = await import('../../lib/api');
+      const res = await api.admin.getSessions(courseId);
+      let dbSessions = res.sessions || [];
 
       if (dbSessions && dbSessions.length > 0) {
         const mapped: Session[] = dbSessions.map((dbItem: any, idx: number) => {
@@ -120,25 +90,34 @@ export default function CourseEditorTab({ coursesList, onSave, showToast }: Prop
     const newTitle = `Bài ${nextOrderIndex}: Bài thực hành nâng cao ${nextOrderIndex}`;
     const newSubtitle = `Nội dung hướng dẫn chi tiết cho bài học thứ ${nextOrderIndex}`;
 
-    try {
-      await sql`
-        INSERT INTO sessions (id, course_id, title, subtitle, icon, target_bpm, time_signature, order_index)
-        VALUES (${newSessId}, ${editorCourseId}, ${newTitle}, ${newSubtitle}, '🎸', 80, 4, ${nextOrderIndex})
-      `;
+    const newSession: Session = {
+      id: newSessId,
+      title: newTitle,
+      subtitle: newSubtitle,
+      icon: '🎸',
+      xp: 100,
+      color: 'amber',
+      x: 0,
+      y: 0,
+      completed: false,
+      unlocked: true,
+      target_bpm: 80,
+      time_signature: 4,
+      content: {
+        bpm: 80,
+        timeSignature: 4,
+        theory: [{ heading: 'Nội dung bài học', body: 'Nội dung bài học mới' }],
+        practice: [{ heading: 'Video Hướng Dẫn', body: '', youtubeId: 'dQw4w9WgXcQ' }],
+        chords: { symbols: ['Em', 'Am'], title: 'Hợp âm' },
+        exercises: [{ id: 'ex_1', text: 'Thực hành bài tập', done: false }]
+      }
+    };
 
-      await sql`
-        UPDATE courses 
-        SET total_sessions = total_sessions + 1 
-        WHERE id = ${editorCourseId}
-      `;
-
-      await fetchSessionsForCourse(editorCourseId);
-      setActiveEditorId(newSessId);
-      showToast(`Đã thêm Bài ${nextOrderIndex} vào khóa học thành công!`);
-    } catch (err: any) {
-      console.error('Add session error:', err);
-      alert('Lỗi thêm bài học: ' + err.message);
-    }
+    const updatedSessions = [...sessions, newSession];
+    setSessions(updatedSessions);
+    setActiveEditorId(newSessId);
+    await onSave(updatedSessions, editorCourseId);
+    showToast(`Đã thêm Bài ${nextOrderIndex} vào khóa học thành công!`);
   };
 
   const handleDeleteSessionInCourse = async (sessId: number, sessTitle: string) => {
@@ -149,21 +128,13 @@ export default function CourseEditorTab({ coursesList, onSave, showToast }: Prop
 
     if (!window.confirm(`Xác nhận xóa "${sessTitle}" khỏi khóa học này?`)) return;
 
-    try {
-      await sql`DELETE FROM sessions WHERE id = ${sessId}`;
-
-      await sql`
-        UPDATE courses 
-        SET total_sessions = GREATEST(1, total_sessions - 1) 
-        WHERE id = ${editorCourseId}
-      `;
-
-      await fetchSessionsForCourse(editorCourseId);
-      showToast(`Đã xóa bài học khỏi khóa ${editorCourseId}`);
-    } catch (err: any) {
-      console.error('Delete session error:', err);
-      alert('Lỗi xóa bài học!');
+    const updatedSessions = sessions.filter(s => s.id !== sessId);
+    setSessions(updatedSessions);
+    if (activeEditorId === sessId && updatedSessions.length > 0) {
+      setActiveEditorId(updatedSessions[0].id);
     }
+    await onSave(updatedSessions, editorCourseId);
+    showToast(`Đã xóa bài học khỏi khóa ${editorCourseId}`);
   };
 
   const activeSession = sessions.find(s => s.id === activeEditorId);

@@ -53,6 +53,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // 3. POST /api/courses?action=complete_session
+    if (req.method === 'POST' && action === 'complete_session') {
+      const { studentEmail, studentId, studentName, sessionId } = req.body || {};
+      const cleanEmail = String(studentEmail || '').trim().toLowerCase();
+      const sId = Number(sessionId);
+
+      if (!cleanEmail || !sId) {
+        return res.status(400).json({ error: 'Thiếu thông tin tiến độ học tập!' });
+      }
+
+      const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      const progId = `prog_${cleanEmailKey}_${sId}`;
+
+      await sql`
+        INSERT INTO student_progress (id, student_id, session_id, is_completed, completed_at)
+        VALUES (${progId}, ${cleanEmail}, ${sId}, true, CURRENT_TIMESTAMP)
+        ON CONFLICT (id) DO UPDATE SET is_completed = true, completed_at = CURRENT_TIMESTAMP
+      `;
+
+      if (studentId && studentId !== cleanEmail) {
+        await sql`
+          INSERT INTO student_progress (id, student_id, session_id, is_completed, completed_at)
+          VALUES (${progId}_id, ${studentId}, ${sId}, true, CURRENT_TIMESTAMP)
+          ON CONFLICT (id) DO UPDATE SET is_completed = true, completed_at = CURRENT_TIMESTAMP
+        `;
+      }
+
+      if (studentName) {
+        await sql`
+          INSERT INTO profiles (id, full_name, email)
+          VALUES (${studentId || cleanEmail}, ${studentName}, ${cleanEmail})
+          ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name
+        `;
+      }
+
+      return res.status(200).json({ success: true });
+    }
+
     return res.status(400).json({ error: 'Invalid courses action' });
   } catch (err: any) {
     console.error('Courses API error:', err);

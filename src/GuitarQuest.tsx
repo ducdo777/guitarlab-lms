@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSessionsData, saveSessionsData } from './data/questData';
 import type { Session } from './data/questData';
-import { sql } from './lib/neon';
 import { LogOut } from 'lucide-react';
 import CourseRoadmap from './components/quest/CourseRoadmap';
 import SessionDetail from './components/quest/SessionDetail';
@@ -181,29 +180,15 @@ export default function GuitarQuest({ user }: Props) {
     });
 
     try {
-      const cleanEmailKey = studentEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      const progId = `prog_${cleanEmailKey}_${session.id}`;
-      await sql`
-        INSERT INTO student_progress (id, student_id, session_id, is_completed, completed_at)
-        VALUES (${progId}, ${studentEmail}, ${session.id}, true, CURRENT_TIMESTAMP)
-        ON CONFLICT (id) DO UPDATE SET is_completed = true, completed_at = CURRENT_TIMESTAMP
-      `;
-
-      if (studentId !== studentEmail) {
-        await sql`
-          INSERT INTO student_progress (id, student_id, session_id, is_completed, completed_at)
-          VALUES (${progId}_id, ${studentId}, ${session.id}, true, CURRENT_TIMESTAMP)
-          ON CONFLICT (id) DO UPDATE SET is_completed = true, completed_at = CURRENT_TIMESTAMP
-        `;
-      }
-
-      await sql`
-        INSERT INTO profiles (id, full_name, email)
-        VALUES (${studentId}, ${studentName}, ${studentEmail})
-        ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name
-      `;
+      const { api } = await import('./lib/api');
+      await api.courses.completeSession({
+        studentEmail,
+        studentId,
+        studentName,
+        sessionId: session.id
+      });
     } catch (e) {
-      console.warn('Neon DB progress save:', e);
+      console.warn('Progress save note:', e);
     }
   };
 
@@ -211,7 +196,8 @@ export default function GuitarQuest({ user }: Props) {
     if (!window.confirm('Bạn có chắc chắn muốn xóa bài nộp video này không? Action này không thể hoàn tác.')) return;
 
     try {
-      await sql`DELETE FROM submissions WHERE id = ${subId}`;
+      const { api } = await import('./lib/api');
+      await api.submissions.delete(subId);
 
       const localSubs = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
       const updatedLocal = localSubs.filter((s: any) => s.id !== subId);
@@ -219,10 +205,7 @@ export default function GuitarQuest({ user }: Props) {
 
       setMySubmissions(prev => prev.filter(s => s.id !== subId));
     } catch (e) {
-      console.warn('Neon DB delete submission note:', e);
-      const localSubs = JSON.parse(localStorage.getItem('guitarlab_submissions') || '[]');
-      const updatedLocal = localSubs.filter((s: any) => s.id !== subId);
-      localStorage.setItem('guitarlab_submissions', JSON.stringify(updatedLocal));
+      console.warn('Delete submission note:', e);
       setMySubmissions(prev => prev.filter(s => s.id !== subId));
     }
   };
