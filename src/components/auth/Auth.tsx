@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { MouseEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 
 interface AuthProps {
@@ -208,7 +209,7 @@ export const Auth: React.FC<AuthProps> = ({ mode = 'student' }) => {
               </div>
             ) : (
               <div className="mt-8 text-center text-xs text-white/40">
-                <a href="/quest" className="text-amber-400 hover:underline">← Quay lại Cổng Học Viên</a>
+                <Link to="/quest" className="text-amber-400 hover:underline">← Quay lại Cổng Học Viên</Link>
               </div>
             )}
 

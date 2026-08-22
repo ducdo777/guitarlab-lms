@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Users, 
   Video, 
@@ -210,13 +211,13 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <a 
-              href="/quest.html" 
+            <Link 
+              to="/quest" 
               className="text-xs font-bold text-amber-200 hover:text-white bg-white/10 hover:bg-white/20 px-3.5 py-2 rounded-xl transition-all border border-amber-400/30 flex items-center gap-1.5"
             >
               <span>Cổng Học Viên</span>
               <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            </Link>
 
             <button
               onClick={() => {
