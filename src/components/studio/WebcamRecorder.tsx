@@ -1,28 +1,15 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { 
-  Camera, 
-  Square, 
-  RefreshCcw, 
-  Check, 
-  Video, 
-  UploadCloud, 
-  AlertCircle, 
-  Mic, 
-  Headphones, 
-  Sliders, 
-  Music, 
-  Sparkles,
-  Maximize2,
-  Minimize2,
-  X,
-  Volume2,
-  Zap,
-  SwitchCamera,
-  Tv,
-  FlipHorizontal
+  Camera, Square, RefreshCcw, Check, Video, UploadCloud, AlertCircle, 
+  Mic, Headphones, Sliders, Music, Sparkles, Maximize2, Minimize2, X, 
+  Volume2, Zap, SwitchCamera, Tv, FlipHorizontal 
 } from 'lucide-react';
 import { sql } from '../../lib/neon';
-import { audioEngine } from '../../services/audioEngine';
+
+import { useCamera, getQualitySettings, type VideoQuality } from '../../hooks/useCamera';
+import { useAudioMonitor } from '../../hooks/useAudioMonitor';
+import { useMediaRecorder } from '../../hooks/useMediaRecorder';
+import { useRecorderMetronome, type MetronomeSize } from '../../hooks/useRecorderMetronome';
 
 interface Props {
   sessionId: number;
@@ -31,9 +18,6 @@ interface Props {
   defaultTimeSignature?: number;
   onSubmitted?: () => void;
 }
-
-type MetronomeSize = 'SM' | 'MD' | 'LG' | 'XL';
-type VideoQuality = '1080p' | '720p' | '480p';
 
 export const WebcamRecorder: React.FC<Props> = ({ 
   sessionId, 
@@ -44,68 +28,37 @@ export const WebcamRecorder: React.FC<Props> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const animFrameRef = useRef<number | null>(null);
-  const vuAnimFrameRef = useRef<number | null>(null);
-  
-  // Audio context & analysis refs
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const monitorGainNodeRef = useRef<GainNode | null>(null);
-  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const metronomeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // States
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [timer, setTimer] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'IDLE' | 'RECORDING' | 'REVIEW' | 'SUCCESS'>('IDLE');
   const [inputMode, setInputMode] = useState<'WEBCAM' | 'UPLOAD'>('WEBCAM');
-
-  // Video Quality (Full HD 1080p / 720p / 480p) & Camera Switcher
-  const [quality, setQuality] = useState<VideoQuality>('1080p');
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>('');
-  const [mirrorVideo, setMirrorVideo] = useState<boolean>(true);
-
-  // Zoom / Fullscreen Expanded Mode
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
-
-  // Mic & Audio Monitoring
-  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('');
-  const [micVolume, setMicVolume] = useState<number>(100); // 0 - 200%
-  const [audioLevel, setAudioLevel] = useState<number>(0); // 0 - 100%
-  const [isMonitoring, setIsMonitoring] = useState<boolean>(false); // Hear mic through headphones
   const [showSettings, setShowSettings] = useState<boolean>(false);
 
-  // Metronome integration inside recording
-  const [embedMetronome, setEmbedMetronome] = useState<boolean>(true);
-  const [playMetronomeAudio, setPlayMetronomeAudio] = useState<boolean>(true);
-  const [metronomeBpm, setMetronomeBpm] = useState<number>(defaultBpm);
-  const [metronomeTimeSig, setMetronomeTimeSig] = useState<number>(defaultTimeSignature);
-  const [metronomeSize, setMetronomeSize] = useState<MetronomeSize>('LG'); // SM, MD, LG, XL
-  const [metronomeVolume, setMetronomeVolume] = useState<number>(120); // 0 - 200%
-  const [tapTimes, setTapTimes] = useState<number[]>([]);
-  const [currentBeat, setCurrentBeat] = useState<number>(0);
-  const currentBeatRef = useRef<number>(0);
+  const {
+    stream, quality, facingMode, videoDevices, selectedVideoDevice,
+    mirrorVideo, setMirrorVideo, cameraError, startCamera: _startCamera, stopCamera: _stopCamera,
+    toggleFacingMode: _toggleFacingMode, handleCameraDeviceChange: _handleCameraDeviceChange,
+    handleQualityChange: _handleQualityChange
+  } = useCamera();
 
-  // Sync default bpm & time signature when prop updates
-  useEffect(() => {
-    if (defaultBpm && defaultBpm >= 30 && defaultBpm <= 250) {
-      setMetronomeBpm(defaultBpm);
-    }
-    if (defaultTimeSignature && [2, 3, 4, 6].includes(defaultTimeSignature)) {
-      setMetronomeTimeSig(defaultTimeSignature);
-    }
-  }, [defaultBpm, defaultTimeSignature]);
+  const {
+    audioDevices, selectedAudioDevice, micVolume, setMicVolume, audioLevel,
+    isMonitoring, setIsMonitoring, setupAudioGraph, handleAudioDeviceChange, stopAudioMonitor
+  } = useAudioMonitor();
+
+  const {
+    recording, videoBlob, setVideoBlob, videoUrl, setVideoUrl, timer,
+    status, setStatus, startRecording: _startRecording, stopRecording, resetRecording
+  } = useMediaRecorder();
+
+  const {
+    embedMetronome, setEmbedMetronome, playMetronomeAudio, setPlayMetronomeAudio,
+    metronomeBpm, setMetronomeBpm, metronomeTimeSig, setMetronomeTimeSig,
+    metronomeSize, setMetronomeSize, metronomeVolume, setMetronomeVolume,
+    currentBeat, currentBeatRef, handleTap, startMetronome, stopMetronome
+  } = useRecorderMetronome(defaultBpm, defaultTimeSignature);
 
   // Handle ESC key to exit expanded mode
   useEffect(() => {
@@ -118,259 +71,6 @@ export const WebcamRecorder: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExpanded]);
 
-  // Resolution dimensions & bitrate map
-  const getQualitySettings = (q: VideoQuality) => {
-    switch (q) {
-      case '1080p':
-        return { width: 1920, height: 1080, bitrate: 6000000, label: 'Full HD 1080p' };
-      case '720p':
-        return { width: 1280, height: 720, bitrate: 3500000, label: 'HD 720p' };
-      case '480p':
-        return { width: 854, height: 480, bitrate: 1500000, label: 'SD 480p' };
-    }
-  };
-
-  // Tap tempo calculator
-  const handleTap = () => {
-    const now = Date.now();
-    const taps = [...tapTimes, now].slice(-4);
-    setTapTimes(taps);
-    if (taps.length >= 2) {
-      const intervals = taps.slice(1).map((t, i) => t - taps[i]);
-      const avg = intervals.reduce((a, b) => a + b) / intervals.length;
-      const calc = Math.round(60000 / avg);
-      if (calc >= 30 && calc <= 250) {
-        setMetronomeBpm(calc);
-      }
-    }
-  };
-
-  // Enumerate all media devices (Mics & Cameras)
-  const loadMediaDevices = async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      
-      const mics = devices.filter(d => d.kind === 'audioinput');
-      setAudioDevices(mics);
-      if (mics.length > 0 && !selectedAudioDevice) {
-        setSelectedAudioDevice(mics[0].deviceId);
-      }
-
-      const cams = devices.filter(d => d.kind === 'videoinput');
-      setVideoDevices(cams);
-      if (cams.length > 0 && !selectedVideoDevice) {
-        setSelectedVideoDevice(cams[0].deviceId);
-      }
-    } catch (e) {
-      console.warn('Error loading media devices:', e);
-    }
-  };
-
-  // Setup Web Audio Graph for VU meter & Monitoring
-  const setupAudioGraph = async (mediaStream: MediaStream) => {
-    try {
-      if (vuAnimFrameRef.current) {
-        cancelAnimationFrame(vuAnimFrameRef.current);
-      }
-
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioContextClass();
-      audioCtxRef.current = ctx;
-
-      if (ctx.state === 'suspended') {
-        await ctx.resume();
-      }
-
-      const source = ctx.createMediaStreamSource(mediaStream);
-      audioSourceRef.current = source;
-
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.3;
-      analyserRef.current = analyser;
-
-      const gain = ctx.createGain();
-      gain.gain.value = micVolume / 100;
-      gainNodeRef.current = gain;
-
-      const monitorGain = ctx.createGain();
-      monitorGain.gain.value = isMonitoring ? 1 : 0;
-      monitorGainNodeRef.current = monitorGain;
-
-      const dest = ctx.createMediaStreamDestination();
-      audioDestRef.current = dest;
-
-      source.connect(gain);
-      gain.connect(analyser);
-      gain.connect(dest);
-      gain.connect(monitorGain);
-      monitorGain.connect(ctx.destination);
-
-      const timeData = new Uint8Array(analyser.fftSize);
-
-      const checkLevel = () => {
-        if (analyserRef.current && audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-          if (audioCtxRef.current.state === 'suspended') {
-            audioCtxRef.current.resume();
-          }
-
-          analyserRef.current.getByteTimeDomainData(timeData);
-          let sum = 0;
-          for (let i = 0; i < timeData.length; i++) {
-            const v = (timeData[i] - 128) / 128;
-            sum += v * v;
-          }
-          const rms = Math.sqrt(sum / timeData.length);
-          
-          const sensitivity = (micVolume / 100);
-          const rawLevel = rms * 350 * sensitivity;
-          const level = Math.min(100, Math.max(0, Math.round(rawLevel)));
-          
-          setAudioLevel(prev => {
-            if (level > prev) return level;
-            return Math.max(0, Math.round(prev * 0.82 + level * 0.18));
-          });
-        }
-        vuAnimFrameRef.current = requestAnimationFrame(checkLevel);
-      };
-      checkLevel();
-    } catch (e) {
-      console.warn('Web Audio Graph Setup Error:', e);
-    }
-  };
-
-  // Update Mic Gain
-  useEffect(() => {
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = micVolume / 100;
-    }
-  }, [micVolume]);
-
-  // Update Monitor Gain
-  useEffect(() => {
-    if (monitorGainNodeRef.current) {
-      monitorGainNodeRef.current.gain.value = isMonitoring ? 1 : 0;
-    }
-  }, [isMonitoring]);
-
-  // Start Camera with configurable resolution, front/back facing mode, and mic
-  const startCamera = async (
-    targetQuality: VideoQuality = quality,
-    targetFacingMode: 'user' | 'environment' = facingMode,
-    targetVideoDeviceId: string = selectedVideoDevice,
-    targetAudioDeviceId: string = selectedAudioDevice
-  ) => {
-    setCameraError(null);
-    try {
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-      }
-
-      const qSettings = getQualitySettings(targetQuality);
-
-      const videoConstraints: MediaTrackConstraints = targetVideoDeviceId
-        ? { 
-            deviceId: { exact: targetVideoDeviceId },
-            width: { ideal: qSettings.width },
-            height: { ideal: qSettings.height }
-          }
-        : {
-            facingMode: targetFacingMode,
-            width: { ideal: qSettings.width },
-            height: { ideal: qSettings.height }
-          };
-
-      const audioConstraints: boolean | MediaTrackConstraints = targetAudioDeviceId
-        ? { deviceId: { exact: targetAudioDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-        : true;
-
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: videoConstraints, 
-        audio: audioConstraints 
-      });
-
-      setStream(mediaStream);
-      setMirrorVideo(targetFacingMode === 'user');
-      await setupAudioGraph(mediaStream);
-      await loadMediaDevices();
-      setStatus('IDLE');
-    } catch (err: any) {
-      console.error('Lỗi truy cập camera/mic:', err);
-      // If 1080p fails on some mobile devices, fallback to standard resolution
-      if (targetQuality === '1080p') {
-        try {
-          console.warn('Falling back to 720p...');
-          setQuality('720p');
-          const fallbackStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: targetFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: true
-          });
-          setStream(fallbackStream);
-          setMirrorVideo(targetFacingMode === 'user');
-          await setupAudioGraph(fallbackStream);
-          await loadMediaDevices();
-          setStatus('IDLE');
-          return;
-        } catch (fbErr: any) {
-          console.error('Fallback error:', fbErr);
-        }
-      }
-      setCameraError(err.message || 'Không thể truy cập Camera/Microphone. Vui lòng cấp quyền.');
-    }
-  };
-
-  // Switch Front / Back Camera (Chuyển Camera Trước / Sau)
-  const toggleFacingMode = async () => {
-    const nextFacingMode = facingMode === 'user' ? 'environment' : 'user';
-    setFacingMode(nextFacingMode);
-    setSelectedVideoDevice(''); // Clear specific device to let facingMode decide
-    if (stream) {
-      await startCamera(quality, nextFacingMode, '', selectedAudioDevice);
-    }
-  };
-
-  // Change Specific Camera Device
-  const handleCameraDeviceChange = async (deviceId: string) => {
-    setSelectedVideoDevice(deviceId);
-    if (stream) {
-      await startCamera(quality, facingMode, deviceId, selectedAudioDevice);
-    }
-  };
-
-  // Change Video Quality / Resolution
-  const handleQualityChange = async (newQuality: VideoQuality) => {
-    setQuality(newQuality);
-    if (stream) {
-      await startCamera(newQuality, facingMode, selectedVideoDevice, selectedAudioDevice);
-    }
-  };
-
-  // Change Audio Device
-  const handleAudioDeviceChange = async (deviceId: string) => {
-    setSelectedAudioDevice(deviceId);
-    if (stream) {
-      try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: { exact: deviceId } }
-        });
-        const newAudioTrack = audioStream.getAudioTracks()[0];
-        const oldAudioTrack = stream.getAudioTracks()[0];
-        if (oldAudioTrack) {
-          stream.removeTrack(oldAudioTrack);
-          oldAudioTrack.stop();
-        }
-        stream.addTrack(newAudioTrack);
-        
-        if (audioCtxRef.current) {
-          audioCtxRef.current.close();
-        }
-        setupAudioGraph(stream);
-      } catch (err) {
-        console.warn('Switch mic error:', err);
-      }
-    }
-  };
-
   // Bind stream to video element
   useEffect(() => {
     if (stream && videoRef.current) {
@@ -378,67 +78,65 @@ export const WebcamRecorder: React.FC<Props> = ({
     }
   }, [stream, status, isExpanded]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close();
-      }
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-      }
-      if (vuAnimFrameRef.current) {
-        cancelAnimationFrame(vuAnimFrameRef.current);
-      }
-      if (metronomeTimerRef.current) {
-        clearInterval(metronomeTimerRef.current);
-      }
-    };
-  }, [stream]);
+  const startCameraWrapper = async (
+    targetQuality: VideoQuality = quality,
+    targetFacingMode: 'user' | 'environment' = facingMode,
+    targetVideoDeviceId: string = selectedVideoDevice,
+    targetAudioDeviceId: string = selectedAudioDevice
+  ) => {
+    const audioConstraints = targetAudioDeviceId
+      ? { deviceId: { exact: targetAudioDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      : true;
+    
+    const mediaStream = await _startCamera(targetQuality, targetFacingMode, targetVideoDeviceId, audioConstraints);
+    if (mediaStream) {
+      await setupAudioGraph(mediaStream);
+      setStatus('IDLE');
+    }
+  };
 
-  // Stop Camera
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
-    }
+  const toggleFacingModeWrapper = async () => {
+    const audioConstraints = selectedAudioDevice
+      ? { deviceId: { exact: selectedAudioDevice }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      : true;
+    await _toggleFacingMode(audioConstraints);
+  };
+
+  const handleCameraDeviceChangeWrapper = async (deviceId: string) => {
+    const audioConstraints = selectedAudioDevice
+      ? { deviceId: { exact: selectedAudioDevice }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      : true;
+    await _handleCameraDeviceChange(deviceId, audioConstraints);
+  };
+
+  const handleQualityChangeWrapper = async (newQuality: VideoQuality) => {
+    const audioConstraints = selectedAudioDevice
+      ? { deviceId: { exact: selectedAudioDevice }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      : true;
+    await _handleQualityChange(newQuality, audioConstraints);
+  };
+
+  const stopCameraWrapper = () => {
+    _stopCamera();
+    stopAudioMonitor();
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
     }
-    if (vuAnimFrameRef.current) {
-      cancelAnimationFrame(vuAnimFrameRef.current);
-    }
-    if (metronomeTimerRef.current) {
-      clearInterval(metronomeTimerRef.current);
-    }
-    setCurrentBeat(0);
-    currentBeatRef.current = 0;
-    setAudioLevel(0);
+    stopMetronome();
     setIsExpanded(false);
   };
 
-  // Safe MimeType check for cross-browser support with high quality codecs
-  const getSupportedMimeType = () => {
-    if (typeof MediaRecorder === 'undefined') return '';
-    const types = [
-      'video/webm;codecs=vp9,opus',
-      'video/webm;codecs=vp8,opus',
-      'video/webm;codecs=h264,opus',
-      'video/mp4;codecs=avc1,mp4a.40.2',
-      'video/webm',
-      'video/mp4'
-    ];
-    return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
-  };
+  useEffect(() => {
+    return () => {
+      stopCameraWrapper();
+    };
+  }, []);
 
-  // Draw overlay on canvas with resolution and mirror adaptation
+  // Metronome sound & beat interval during recording
+  useEffect(() => {
+    startMetronome(recording);
+  }, [recording, embedMetronome, playMetronomeAudio, metronomeBpm, metronomeTimeSig, metronomeVolume, startMetronome]);
+
   const drawMetronomeOverlay = useCallback(() => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -557,132 +255,49 @@ export const WebcamRecorder: React.FC<Props> = ({
     ctx.restore();
   }, [embedMetronome, metronomeBpm, metronomeTimeSig, metronomeSize, mirrorVideo, timer]);
 
-  // Metronome sound & beat interval during recording
-  useEffect(() => {
-    if (recording && (embedMetronome || playMetronomeAudio)) {
-      const intervalMs = (60 / metronomeBpm) * 1000;
-      metronomeTimerRef.current = setInterval(() => {
-        setCurrentBeat(prev => {
-          const next = (prev % metronomeTimeSig) + 1;
-          currentBeatRef.current = next;
-          if (playMetronomeAudio) {
-            audioEngine.playClick(next === 1, metronomeVolume / 100);
-          }
-          return next;
-        });
-      }, intervalMs);
-    } else {
-      if (metronomeTimerRef.current) {
-        clearInterval(metronomeTimerRef.current);
-      }
-      setCurrentBeat(0);
-      currentBeatRef.current = 0;
-    }
-
-    return () => {
-      if (metronomeTimerRef.current) {
-        clearInterval(metronomeTimerRef.current);
-      }
-    };
-  }, [recording, embedMetronome, playMetronomeAudio, metronomeBpm, metronomeTimeSig, metronomeVolume]);
-
-  // Start Recording with Selected Full HD / HD Resolution & High Bitrate
-  const startRecording = async () => {
+  const startRecordingWrapper = async () => {
     if (!stream) return;
-    try {
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-        await audioCtxRef.current.resume();
-      }
+    
+    let recordStream: MediaStream;
+    const qSettings = getQualitySettings(quality);
 
-      const qSettings = getQualitySettings(quality);
-      const mimeType = getSupportedMimeType();
-      const options: MediaRecorderOptions = {
-        ...(mimeType ? { mimeType } : {}),
-        videoBitsPerSecond: qSettings.bitrate
-      };
+    if (embedMetronome && canvasRef.current) {
+      const canvas = canvasRef.current;
+      canvas.width = qSettings.width;
+      canvas.height = qSettings.height;
 
-      let recordStream: MediaStream;
+      drawMetronomeOverlay();
 
-      if (embedMetronome && canvasRef.current) {
-        const canvas = canvasRef.current;
-        canvas.width = qSettings.width;
-        canvas.height = qSettings.height;
+      const canvasStream = canvas.captureStream(30);
+      const audioTracks = stream.getAudioTracks();
 
+      recordStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioTracks
+      ]);
+
+      const loop = () => {
         drawMetronomeOverlay();
-
-        const canvasStream = canvas.captureStream(30);
-        const audioTracks = stream.getAudioTracks();
-
-        recordStream = new MediaStream([
-          ...canvasStream.getVideoTracks(),
-          ...audioTracks
-        ]);
-
-        const loop = () => {
-          drawMetronomeOverlay();
-          animFrameRef.current = requestAnimationFrame(loop);
-        };
-        loop();
-      } else {
-        const audioTracks = stream.getAudioTracks();
-
-        recordStream = new MediaStream([
-          ...stream.getVideoTracks(),
-          ...audioTracks
-        ]);
-      }
-
-      const recorder = new MediaRecorder(recordStream, options);
-      const chunks: BlobPart[] = [];
-      
-      recorder.ondataavailable = e => {
-        if (e.data && e.data.size > 0) {
-          chunks.push(e.data);
-        }
+        animFrameRef.current = requestAnimationFrame(loop);
       };
-      
-      recorder.onstop = () => {
-        if (animFrameRef.current) {
-          cancelAnimationFrame(animFrameRef.current);
-        }
-        const blobType = mimeType || 'video/webm';
-        const blob = new Blob(chunks, { type: blobType });
-        console.log(`✅ Video recorded (${quality} Full HD):`, blob.size, 'bytes, type:', blob.type);
-        setVideoBlob(blob);
-        const url = URL.createObjectURL(blob);
-        setVideoUrl(url);
-        setStatus('REVIEW');
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start(250);
-      setRecording(true);
-      setStatus('RECORDING');
-      setTimer(0);
-    } catch (err: any) {
-      console.error('Lỗi khởi động MediaRecorder:', err);
-      alert('Không thể bắt đầu ghi hình: ' + err.message);
+      loop();
+    } else {
+      const audioTracks = stream.getAudioTracks();
+      recordStream = new MediaStream([
+        ...stream.getVideoTracks(),
+        ...audioTracks
+      ]);
     }
+
+    await _startRecording(recordStream, quality);
   };
 
-  // Stop Recording
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && recording) {
-      mediaRecorderRef.current.stop();
-      setRecording(false);
+  const stopRecordingWrapper = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
     }
+    stopRecording();
   };
-
-  // Timer counter
-  useEffect(() => {
-    let interval: any;
-    if (recording) {
-      interval = setInterval(() => {
-        setTimer(t => t + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [recording]);
 
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -700,7 +315,6 @@ export const WebcamRecorder: React.FC<Props> = ({
       .join('');
   };
 
-  // Upload video to Cloudinary + Save to Neon DB
   const submitVideo = async () => {
     if (!videoBlob) return;
     setUploading(true);
@@ -776,11 +390,9 @@ export const WebcamRecorder: React.FC<Props> = ({
 
   const currentQualityInfo = getQualitySettings(quality);
 
-  // Render IDLE or RECORDING view
   if (status === 'IDLE' || status === 'RECORDING') {
     return (
       <>
-        {/* Offscreen Canvas for Compositing Video + Metronome Overlay (1080p / 720p Full Resolution) */}
         <canvas 
           ref={canvasRef} 
           width={currentQualityInfo.width} 
@@ -797,14 +409,12 @@ export const WebcamRecorder: React.FC<Props> = ({
           }} 
         />
 
-        {/* Outer Wrapper with Fullscreen Expanded Mode Handling */}
         <div className={`w-full transition-all duration-300 ${
           isExpanded 
             ? 'fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl p-4 sm:p-8 flex flex-col items-center justify-center overflow-y-auto' 
             : 'bg-slate-900 rounded-3xl overflow-hidden shadow-xl border border-slate-800 p-3.5 sm:p-5 space-y-4'
         }`}>
 
-          {/* Mode Switcher Tabs (Only when camera is off) */}
           {!stream && (
             <div className="flex items-center gap-2 p-1.5 bg-slate-800/90 rounded-2xl border border-slate-700/60 w-full max-w-md mx-auto">
               <button
@@ -828,7 +438,6 @@ export const WebcamRecorder: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Initial Camera Off Placeholder */}
           {!stream && inputMode === 'WEBCAM' && (
             <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center min-h-[200px] bg-slate-900 text-white w-full">
               <div className="w-14 h-14 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center mb-3 border border-slate-700 shadow-md">
@@ -847,7 +456,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Quick Quality Pill Selector before starting */}
               <div className="flex items-center gap-2 mb-4 bg-slate-800/80 p-1.5 rounded-xl border border-white/10">
                 <span className="text-[11px] font-bold text-slate-400 px-2 flex items-center gap-1">
                   <Tv className="w-3.5 h-3.5 text-amber-400" /> Chất lượng:
@@ -856,7 +464,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                   <button
                     key={q}
                     type="button"
-                    onClick={() => setQuality(q)}
+                    onClick={() => handleQualityChangeWrapper(q)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
                       quality === q
                         ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -869,7 +477,7 @@ export const WebcamRecorder: React.FC<Props> = ({
               </div>
 
               <button 
-                onClick={() => startCamera(quality, facingMode, selectedVideoDevice, selectedAudioDevice)} 
+                onClick={() => startCameraWrapper(quality, facingMode, selectedVideoDevice, selectedAudioDevice)} 
                 className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 px-6 py-3.5 rounded-xl font-black text-xs tracking-wider uppercase flex items-center gap-2 transition-all shadow-lg shadow-amber-900/30 active:scale-95"
               >
                 <Video className="w-4 h-4" /> Bật Camera Ngay
@@ -877,7 +485,6 @@ export const WebcamRecorder: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Upload Mode */}
           {!stream && inputMode === 'UPLOAD' && (
             <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center min-h-[200px] bg-slate-900 text-white w-full">
               <div className="w-14 h-14 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center mb-3 border border-slate-700 shadow-md">
@@ -911,11 +518,9 @@ export const WebcamRecorder: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Live Camera View */}
           {stream && (
             <div className={`w-full ${isExpanded ? 'max-w-4xl space-y-4' : 'space-y-3'}`}>
               
-              {/* Top Bar inside Fullscreen Mode */}
               {isExpanded && (
                 <div className="flex items-center justify-between pb-2 text-white">
                   <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
@@ -931,7 +536,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Video Player Box with Scalable Metronome HUD & Front/Back Mirroring */}
               <div className={`relative bg-black rounded-2xl sm:rounded-3xl overflow-hidden aspect-video flex items-center justify-center border border-white/10 shadow-2xl ${
                 isExpanded ? 'w-full max-h-[65vh]' : 'w-full'
               }`}>
@@ -943,7 +547,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                   className={`w-full h-full object-cover ${mirrorVideo ? 'transform -scale-x-100' : ''}`}
                 />
 
-                {/* Top Left: Recording Status Badge & Quality Tag */}
                 <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
                   {recording ? (
                     <div className="flex items-center gap-1.5 bg-rose-600 text-white px-2.5 py-1 rounded-full shadow-lg border border-rose-400/40 animate-pulse text-[11px] font-mono font-black">
@@ -957,9 +560,8 @@ export const WebcamRecorder: React.FC<Props> = ({
                     </div>
                   )}
 
-                  {/* Quick Switch Front/Back Camera Button */}
                   <button
-                    onClick={toggleFacingMode}
+                    onClick={toggleFacingModeWrapper}
                     className="p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-md text-amber-400 hover:text-amber-300 rounded-xl border border-white/15 transition-all shadow-md flex items-center gap-1 text-[10px] font-bold"
                     title="Đổi Camera Trước / Sau (Selfie / Môi trường)"
                   >
@@ -968,7 +570,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                   </button>
                 </div>
 
-                {/* Top Right: Scalable Metronome HUD & Zoom Toggle Button */}
                 <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
                   {embedMetronome && (
                     <div className={`bg-slate-950/90 backdrop-blur-md border border-white/25 shadow-xl flex flex-col items-center gap-1 transition-all ${
@@ -993,7 +594,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                         <span>{metronomeBpm} BPM ({metronomeTimeSig}/4)</span>
                       </div>
 
-                      {/* Beat Indicator Pills with Scaled Sizes */}
                       <div className="flex items-center gap-1.5">
                         {Array.from({ length: metronomeTimeSig }).map((_, idx) => {
                           const beatNum = idx + 1;
@@ -1003,10 +603,10 @@ export const WebcamRecorder: React.FC<Props> = ({
                           const pillClasses = metronomeSize === 'SM'
                             ? 'w-4 h-4 text-[9px] rounded'
                             : metronomeSize === 'MD'
-                              ? 'w-5 h-5 text-[10px] rounded-lg'
-                              : metronomeSize === 'LG'
-                                ? 'w-7 h-7 text-xs font-black rounded-xl'
-                                : 'w-9 h-9 text-sm font-black rounded-2xl';
+                            ? 'w-5 h-5 text-[10px] rounded-lg'
+                            : metronomeSize === 'LG'
+                            ? 'w-7 h-7 text-xs font-black rounded-xl'
+                            : 'w-9 h-9 text-sm font-black rounded-2xl';
 
                           return (
                             <div
@@ -1027,7 +627,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                     </div>
                   )}
 
-                  {/* Zoom In / Zoom Out (Fullscreen) Button */}
                   <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="p-2 bg-black/70 hover:bg-black/90 backdrop-blur-md text-slate-200 hover:text-white rounded-2xl border border-white/25 transition-all shadow-md"
@@ -1038,10 +637,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* ══ CLEAN BOTTOM RECORD CONTROL TOOLBAR ══ */}
               <div className="flex items-center justify-between gap-2 p-2 sm:p-3 bg-slate-950/90 rounded-2xl border border-white/10">
-                
-                {/* Left: Settings Toggle Button */}
                 <button
                   onClick={() => setShowSettings(!showSettings)}
                   className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
@@ -1055,11 +651,10 @@ export const WebcamRecorder: React.FC<Props> = ({
                   <span>{showSettings ? 'Đóng Cài Đặt' : 'Chỉnh Full HD & Nhịp'}</span>
                 </button>
 
-                {/* Center: Prominent Record / Stop Button */}
                 <div>
                   {!recording ? (
                     <button 
-                      onClick={startRecording} 
+                      onClick={startRecordingWrapper} 
                       className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-rose-900/50 hover:scale-105 active:scale-95 transition-all"
                       title="Bắt đầu quay video Full HD"
                     >
@@ -1068,7 +663,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                     </button>
                   ) : (
                     <button 
-                      onClick={stopRecording} 
+                      onClick={stopRecordingWrapper} 
                       className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-950 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all animate-bounce"
                       title="Dừng quay video"
                     >
@@ -1078,16 +673,14 @@ export const WebcamRecorder: React.FC<Props> = ({
                   )}
                 </div>
 
-                {/* Right: Turn Off Camera */}
                 <button
-                  onClick={stopCamera}
+                  onClick={stopCameraWrapper}
                   className="px-3 py-2 text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
                 >
                   Tắt Cam
                 </button>
               </div>
 
-              {/* ══ LIVE MIC VU METER & AUDIO MONITORING ══ */}
               <div className="p-3 bg-slate-950/80 rounded-2xl border border-white/10 space-y-2">
                 <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
                   <div className="flex items-center gap-1.5 font-bold text-slate-300 text-[11px] sm:text-xs">
@@ -1100,7 +693,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                     </span>
                   </div>
                   
-                  {/* Headphone Audio Monitor Toggle */}
                   <button
                     type="button"
                     onClick={() => setIsMonitoring(!isMonitoring)}
@@ -1116,7 +708,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                   </button>
                 </div>
 
-                {/* Dynamic VU Meter Bar */}
                 <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-white/5">
                   <div 
                     className="h-full rounded-full transition-all duration-75"
@@ -1132,7 +723,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* ══ EXPANDABLE SETTINGS: QUALITY, CAM SWITCHER, MIC, METRONOME ══ */}
               {showSettings && (
                 <div className="p-4 sm:p-5 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-4 shadow-xl text-white">
                   
@@ -1150,10 +740,8 @@ export const WebcamRecorder: React.FC<Props> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
-                    {/* Left Column: Video Quality, Camera Lens & Mic Config */}
                     <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-white/5">
                       
-                      {/* Quality Selector (Full HD 1080p / HD 720p / SD 480p) */}
                       <div>
                         <label className="text-[11px] font-bold text-amber-300 block mb-1.5 flex items-center gap-1">
                           <Tv className="w-3.5 h-3.5 text-amber-400" /> Chất Lượng Độ Phân Giải Video:
@@ -1167,7 +755,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                             <button
                               key={item.q}
                               type="button"
-                              onClick={() => handleQualityChange(item.q)}
+                              onClick={() => handleQualityChangeWrapper(item.q)}
                               className={`py-2 px-1.5 rounded-xl border text-center transition-all ${
                                 quality === item.q
                                   ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black'
@@ -1181,7 +769,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      {/* Camera Lens Selector & Flip */}
                       <div className="pt-2 border-t border-white/10 space-y-2">
                         <div className="flex items-center justify-between">
                           <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
@@ -1190,7 +777,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                           
                           <button
                             type="button"
-                            onClick={toggleFacingMode}
+                            onClick={toggleFacingModeWrapper}
                             className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-lg border border-white/10"
                           >
                             <SwitchCamera className="w-3 h-3" />
@@ -1198,10 +785,9 @@ export const WebcamRecorder: React.FC<Props> = ({
                           </button>
                         </div>
 
-                        {/* Camera Device Dropdown */}
                         <select
                           value={selectedVideoDevice}
-                          onChange={(e) => handleCameraDeviceChange(e.target.value)}
+                          onChange={(e) => handleCameraDeviceChangeWrapper(e.target.value)}
                           className="w-full bg-slate-900 border border-white/20 rounded-xl p-2 text-xs text-slate-200 outline-none focus:border-amber-400 truncate"
                         >
                           <option value="">{facingMode === 'user' ? 'Camera Trước (Selfie / Mặc định)' : 'Camera Sau (Môi trường / Mặc định)'}</option>
@@ -1212,7 +798,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                           ))}
                         </select>
 
-                        {/* Mirror Video Toggle */}
                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300 pt-1">
                           <input
                             type="checkbox"
@@ -1226,7 +811,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                         </label>
                       </div>
 
-                      {/* Microphone Selection & Gain */}
                       <div className="pt-2 border-t border-white/10 space-y-2">
                         <div>
                           <label className="text-[11px] font-bold text-slate-300 block mb-1">
@@ -1234,7 +818,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                           </label>
                           <select
                             value={selectedAudioDevice}
-                            onChange={(e) => handleAudioDeviceChange(e.target.value)}
+                            onChange={(e) => handleAudioDeviceChange(e.target.value, stream)}
                             className="w-full bg-slate-900 border border-white/20 rounded-xl p-2 text-xs text-slate-200 outline-none focus:border-amber-400 truncate"
                           >
                             {audioDevices.length > 0 ? (
@@ -1267,10 +851,8 @@ export const WebcamRecorder: React.FC<Props> = ({
 
                     </div>
 
-                    {/* Right Column: Metronome Size, Sound Volume & Custom BPM Controls */}
                     <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-white/5">
                       
-                      {/* Metronome HUD Size Selector */}
                       <div>
                         <label className="text-[11px] font-bold text-amber-300 block mb-1.5">
                           Kích Thước Bảng Metronome Trên Video:
@@ -1297,7 +879,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      {/* Metronome Sound Volume (Tăng / Giảm Âm Lượng Tiếng Click) */}
                       <div className="pt-1">
                         <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
                           <span className="flex items-center gap-1 text-amber-300">
@@ -1336,7 +917,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      {/* Checkboxes */}
                       <div className="space-y-1.5 pt-1 border-t border-white/10">
                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
                           <input
@@ -1362,10 +942,8 @@ export const WebcamRecorder: React.FC<Props> = ({
                         </label>
                       </div>
 
-                      {/* Custom BPM & Time Signature Controls */}
                       <div className="p-3 bg-slate-950 rounded-xl border border-white/10 space-y-2.5">
                         
-                        {/* Direct BPM input + Step Buttons */}
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[11px] font-bold text-slate-300">Tốc Độ Tùy Chỉnh:</span>
                           
@@ -1392,7 +970,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                               -1
                             </button>
 
-                            {/* Direct Number Input */}
                             <input
                               type="number"
                               min={30}
@@ -1426,7 +1003,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                           </div>
                         </div>
 
-                        {/* Slider + Tap Tempo */}
                         <div className="flex items-center gap-2">
                           <input
                             type="range"
@@ -1445,7 +1021,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                           </button>
                         </div>
 
-                        {/* Time Signature */}
                         <div className="flex items-center gap-1.5 pt-1 border-t border-white/10 flex-wrap">
                           <span className="text-[10px] font-bold text-slate-400">Nhịp:</span>
                           {[2, 3, 4, 6].map(ts => (
@@ -1464,7 +1039,6 @@ export const WebcamRecorder: React.FC<Props> = ({
                           ))}
                         </div>
 
-                        {/* Speed Presets */}
                         <div className="flex items-center gap-1 pt-1 overflow-x-auto">
                           <span className="text-[9px] font-bold text-slate-400 shrink-0 flex items-center gap-0.5">
                             <Zap className="w-2.5 h-2.5 text-amber-400" /> Gợi ý:
@@ -1508,7 +1082,6 @@ export const WebcamRecorder: React.FC<Props> = ({
     );
   }
 
-  // Review recorded video
   if (status === 'REVIEW') {
     return (
       <div className="w-full bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200">
@@ -1539,9 +1112,8 @@ export const WebcamRecorder: React.FC<Props> = ({
         <div className="p-3.5 sm:p-5 flex gap-3 bg-slate-50 border-t border-slate-200 flex-col sm:flex-row">
           <button 
             onClick={() => {
-              setVideoBlob(null);
-              setVideoUrl(null);
-              startCamera(quality, facingMode, selectedVideoDevice, selectedAudioDevice);
+              resetRecording();
+              startCameraWrapper(quality, facingMode, selectedVideoDevice, selectedAudioDevice);
             }} 
             disabled={uploading}
             className="flex-1 py-3 px-4 bg-white text-slate-700 border border-slate-300 rounded-2xl font-bold text-xs hover:bg-slate-100 transition-all flex justify-center items-center gap-2 disabled:opacity-50 shadow-xs"
@@ -1588,3 +1160,4 @@ export const WebcamRecorder: React.FC<Props> = ({
 
   return null;
 };
+export default WebcamRecorder;

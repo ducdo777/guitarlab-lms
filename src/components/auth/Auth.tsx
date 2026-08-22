@@ -254,7 +254,7 @@ export const Auth: React.FC<AuthProps> = ({ mode = 'student' }) => {
               </div>
             ) : (
               <div className="mt-8 text-center text-xs text-white/40">
-                <a href="/quest.html" className="text-amber-400 hover:underline">← Quay lại Cổng Học Viên</a>
+                <a href="/quest" className="text-amber-400 hover:underline">← Quay lại Cổng Học Viên</a>
               </div>
             )}
 

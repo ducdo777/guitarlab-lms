@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export default function App() {
   return (
     <div className="font-sans min-h-screen bg-gray-100 flex flex-col antialiased text-gray-900 selection:bg-amber-200 selection:text-amber-900">
@@ -5,14 +7,14 @@ export default function App() {
       {/* ══ TOP BANNER ══ */}
       <div className="bg-[#1b2a47] text-white text-xs sm:text-sm py-2 px-4 flex flex-wrap justify-center items-center gap-3 border-b border-amber-500/20 z-50">
         <span className="font-medium text-amber-100/90 text-center">
-          Khoá Học Guitar Đệm Hát 8 Bài — Tặng Kèm Metronome & Tuner Chuyên Nghiệp
+          Khoá Học Guitar Đệm Hát 8 Bài — Tặng Kèm Metronome &amp; Tuner Chuyên Nghiệp
         </span>
-        <a 
-          href="/quest.html" 
+        <Link 
+          to="/quest" 
           className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold px-3.5 py-1 rounded-md text-xs transition-all shadow-sm shadow-amber-900/40 shrink-0"
         >
           Sở Hữu Ngay!
-        </a>
+        </Link>
       </div>
 
       {/* ══ HEADER NAVIGATION ══ */}
@@ -20,7 +22,7 @@ export default function App() {
         <div className="max-w-[1360px] mx-auto px-6 h-20 flex items-center justify-between">
           
           {/* Logo */}
-          <a href="/" className="flex items-center gap-3 group">
+          <Link to="/" className="flex items-center gap-3 group">
             <div className="w-11 h-11 bg-gradient-to-tr from-amber-500 to-amber-300 rounded-xl flex items-center justify-center shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
               <span className="text-2xl">🎸</span>
             </div>
@@ -28,36 +30,36 @@ export default function App() {
               <span className="text-xl font-black tracking-tight text-[#1b2a47] leading-none">GUITARLAB</span>
               <span className="text-[10px] font-extrabold text-amber-600 tracking-widest uppercase mt-1">ACADEMY</span>
             </div>
-          </a>
+          </Link>
 
           {/* Nav Links */}
           <nav className="hidden lg:flex items-center gap-7 text-[#1b2a47] font-semibold text-sm">
-            <a href="/" className="text-amber-600 font-bold border-b-2 border-amber-500 pb-1">Trang chủ</a>
-            <a href="/quest.html" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
+            <Link to="/" className="text-amber-600 font-bold border-b-2 border-amber-500 pb-1">Trang chủ</Link>
+            <Link to="/quest" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
               Khoá Học 8 Bài
-            </a>
-            <a href="/admin.html" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
+            </Link>
+            <Link to="/admin" className="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
               Cổng Giáo Viên
-            </a>
-            <a href="/quest.html" className="hover:text-amber-600 transition-colors uppercase text-xs font-bold bg-amber-50 text-amber-800 px-3.5 py-1.5 rounded-full border border-amber-200/60">
+            </Link>
+            <Link to="/quest" className="hover:text-amber-600 transition-colors uppercase text-xs font-bold bg-amber-50 text-amber-800 px-3.5 py-1.5 rounded-full border border-amber-200/60">
               CỔNG HỌC VIÊN
-            </a>
+            </Link>
           </nav>
 
           {/* Action Buttons */}
           <div className="flex items-center gap-3">
-            <a 
-              href="/admin.html" 
+            <Link 
+              to="/admin" 
               className="hidden sm:inline-flex bg-slate-100 hover:bg-slate-200 text-[#1b2a47] font-bold text-xs py-2.5 px-4 rounded-full transition-all border border-slate-200"
             >
               Cổng Giáo Viên
-            </a>
-            <a 
-              href="/quest.html" 
+            </Link>
+            <Link 
+              to="/quest" 
               className="hidden sm:inline-flex bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-5 rounded-full transition-all shadow-md shadow-amber-500/20"
             >
               Cổng Học Viên ➔
-            </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -118,12 +120,12 @@ export default function App() {
               </h1>
 
               {/* Action Button */}
-              <a 
-                href="/quest.html" 
+              <Link 
+                to="/quest" 
                 className="w-full bg-gradient-to-r from-[#224285] to-[#162d5a] hover:from-[#1b346b] hover:to-[#0f1f3d] text-white font-extrabold text-base sm:text-lg py-4 px-6 rounded-2xl text-center uppercase tracking-wide transition-all shadow-xl shadow-blue-950/30 mb-8 block transform hover:-translate-y-0.5 active:translate-y-0"
               >
                 CHỌN KHÓA HỌC QUAN TÂM
-              </a>
+              </Link>
 
               {/* Bullet Features */}
               <ul className="space-y-3.5">
@@ -143,7 +145,7 @@ export default function App() {
                   <div className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm font-bold text-xs">
                     ✓
                   </div>
-                  <span>Tặng <strong className="text-gray-900 font-extrabold">Metronome & Tuner Premium</strong> tương tác trực tiếp</span>
+                  <span>Tặng <strong className="text-gray-900 font-extrabold">Metronome &amp; Tuner Premium</strong> tương tác trực tiếp</span>
                 </li>
               </ul>
             </div>
