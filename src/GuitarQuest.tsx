@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSessionsData, saveSessionsData } from './data/questData';
 import type { Session } from './data/questData';
-import { sql, initNeonSchema } from './lib/neon';
+import { sql } from './lib/neon';
 import { LogOut } from 'lucide-react';
 import CourseRoadmap from './components/quest/CourseRoadmap';
 import SessionDetail from './components/quest/SessionDetail';
@@ -26,37 +26,19 @@ export default function GuitarQuest({ user }: Props) {
   const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [activeCourseId, setActiveCourseId] = useState<string>('guitar-8-buoi');
 
-  // Fetch Live Data from Neon PostgreSQL Database
+  // Fetch Live Data via Secure API
   useEffect(() => {
-    async function loadNeonData() {
+    async function loadData() {
       try {
-        await initNeonSchema();
+        const { api } = await import('./lib/api');
 
-        let enrolledCoursesList: any[] = [];
+        // 1. Fetch available & enrolled courses
         try {
-          const dbCourses = await sql`SELECT * FROM courses ORDER BY created_at ASC`;
-          const enrolledRows = await sql`
-            SELECT course_id FROM user_courses 
-            WHERE LOWER(student_email) = ${studentEmail.toLowerCase()}
-          `;
+          const coursesRes = await api.courses.list(studentEmail);
+          const dbCourses = coursesRes.courses || [];
+          const enrolledSet = new Set(coursesRes.enrolledCourseIds || ['guitar-8-buoi']);
 
-          let enrolledCourseIds: Set<string>;
-          if (enrolledRows && enrolledRows.length > 0) {
-            enrolledCourseIds = new Set(enrolledRows.map((r: any) => r.course_id));
-          } else {
-            enrolledCourseIds = new Set(['guitar-8-buoi']);
-            const cleanEmailKey = studentEmail.replace(/[^a-zA-Z0-9]/g, '_');
-            const autoEnrollId = `enroll_${cleanEmailKey}_guitar-8-buoi`;
-            try {
-              await sql`
-                INSERT INTO user_courses (id, student_email, course_id)
-                VALUES (${autoEnrollId}, ${studentEmail}, 'guitar-8-buoi')
-                ON CONFLICT (student_email, course_id) DO NOTHING
-              `;
-            } catch (aeErr) {}
-          }
-
-          enrolledCoursesList = (dbCourses || []).filter((c: any) => enrolledCourseIds.has(c.id));
+          const enrolledCoursesList = dbCourses.filter((c: any) => enrolledSet.has(c.id));
           if (enrolledCoursesList.length > 0) {
             setAvailableCourses(enrolledCoursesList);
             const currentIsEnrolled = enrolledCoursesList.some((c: any) => c.id === activeCourseId);
@@ -68,26 +50,27 @@ export default function GuitarQuest({ user }: Props) {
             setActiveCourseId('guitar-8-buoi');
           }
         } catch (cErr) {
-          console.warn('Neon DB courses fetch note:', cErr);
+          console.warn('Courses fetch error:', cErr);
         }
 
-        const dbSessions = await sql`
-          SELECT * FROM sessions 
-          WHERE course_id = ${activeCourseId} OR (course_id IS NULL AND ${activeCourseId} = 'guitar-8-buoi')
-          ORDER BY order_index ASC, id ASC
-        `;
-        
-        const progressRows = await sql`
-          SELECT * FROM student_progress 
-          WHERE student_id = ${studentEmail} OR student_id = ${studentId}
-        `;
+        // 2. Fetch sessions for active course
+        const sessionsRes = await api.courses.getSessions(activeCourseId);
+        const dbSessions = sessionsRes.sessions || [];
 
-        const completedIds = new Set(progressRows.filter((p: any) => p.is_completed).map((p: any) => Number(p.session_id)));
+        // 3. Fetch submissions & student progress
+        let mySubs: any[] = [];
+        try {
+          const subsRes = await api.submissions.getMy(studentEmail, studentId);
+          mySubs = subsRes.submissions || [];
+          setMySubmissions(mySubs);
+        } catch (sErr) {
+          console.warn('Submissions fetch error:', sErr);
+        }
 
         if (dbSessions && dbSessions.length > 0) {
           const mapped: Session[] = dbSessions.map((dbItem: any, idx: number) => {
             const sessNum = idx + 1;
-            const isDone = completedIds.has(Number(dbItem.id));
+            const isDone = mySubs.some((sub: any) => Number(sub.session_id) === Number(dbItem.id) && sub.status === 'REVIEWED');
 
             const dbChords = dbItem?.chords && Array.isArray(dbItem.chords) && dbItem.chords.length > 0 ? dbItem.chords : ['C', 'G', 'Am', 'Em'];
             const dbExercises = dbItem?.exercises 
@@ -118,7 +101,7 @@ export default function GuitarQuest({ user }: Props) {
               x: 0,
               y: 0,
               completed: isDone,
-              unlocked: isDone || sessNum === 1 || completedIds.has(Number(dbSessions[idx - 1]?.id)),
+              unlocked: isDone || sessNum === 1 || Number(dbSessions[idx - 1]?.id) === 1,
               target_bpm: targetBpm,
               time_signature: timeSig,
               content: {
@@ -137,35 +120,15 @@ export default function GuitarQuest({ user }: Props) {
           });
           setSessions(mapped);
         } else {
-          const mapped: Session[] = getSessionsData().map(localSession => {
-            const isDone = completedIds.has(localSession.id);
-            return {
-              ...localSession,
-              completed: isDone,
-              unlocked: isDone || localSession.id === 1 || completedIds.has(localSession.id - 1)
-            };
-          });
-          setSessions(mapped);
+          setSessions(getSessionsData());
         }
-
-        try {
-          const dbSubmissions = await sql`
-            SELECT * FROM submissions 
-            WHERE LOWER(student_email) = ${studentEmail.toLowerCase()} OR student_id = ${studentId}
-            ORDER BY id DESC
-          `;
-          setMySubmissions(dbSubmissions || []);
-        } catch (subErr) {
-          console.warn('Neon DB submissions fetch:', subErr);
-        }
-
       } catch (err) {
-        console.warn('Neon DB dynamic fetch error:', err);
+        console.warn('Data fetch error:', err);
       }
     }
 
     if (studentEmail || studentId) {
-      loadNeonData();
+      loadData();
     }
   }, [studentId, studentEmail, activeCourseId]);
 

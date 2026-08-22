@@ -45,81 +45,35 @@ export const Auth: React.FC<AuthProps> = ({ mode = 'student' }) => {
     const cleanPassword = password.trim();
 
     try {
-      const { sql, initNeonSchema } = await import('../../lib/neon');
-      await initNeonSchema();
+      const { api } = await import('../../lib/api');
 
       if (isLogin) {
-        // === 1. ĐĂNG NHẬP & KIỂM TRA TRONG NEON POSTGRES CSDL ===
-        const existingProfiles = await sql`
-          SELECT * FROM profiles WHERE LOWER(email) = ${cleanEmail}
-        `;
+        // === 1. ĐĂNG NHẬP QUA SECURE API ===
+        const res = await api.auth.login(cleanEmail, cleanPassword);
+        const user = res.user;
 
-        if (!existingProfiles || existingProfiles.length === 0) {
-          setError('Tài khoản chưa tồn tại trong hệ thống. Vui lòng bấm Đăng Ký để tạo tài khoản mới!');
-          setLoading(false);
-          return;
-        }
-
-        const userProfile = existingProfiles[0];
-        if (userProfile.password_hash && userProfile.password_hash !== cleanPassword) {
-          setError('Mật khẩu không chính xác! Vui lòng kiểm tra lại.');
-          setLoading(false);
-          return;
-        }
-
-        // Đăng nhập thành công từ CSDL Neon!
         localStorage.setItem('skip_auth', 'true');
-        localStorage.setItem('temp_user_name', userProfile.full_name || cleanEmail.split('@')[0]);
+        localStorage.setItem('temp_user_name', user.full_name || cleanEmail.split('@')[0]);
         localStorage.setItem('temp_user_email', cleanEmail);
-        localStorage.setItem('temp_user_id', userProfile.id);
+        localStorage.setItem('temp_user_id', user.id);
         window.location.reload();
         return;
       } else {
-        // === 2. ĐĂNG KÝ TÀI KHOẢN MỚI VÀO NEON POSTGRES CSDL ===
+        // === 2. ĐĂNG KÝ TÀI KHOẢN MỚI QUA SECURE API ===
         const displayName = fullName.trim() || cleanEmail.split('@')[0];
+        const res = await api.auth.register(displayName, cleanEmail, cleanPassword);
+        const user = res.user;
 
-        // Kiểm tra xem Email đã tồn tại trong CSDL chưa
-        const checkEmail = await sql`
-          SELECT * FROM profiles WHERE LOWER(email) = ${cleanEmail}
-        `;
-
-        if (checkEmail && checkEmail.length > 0) {
-          setError('Email này đã được đăng ký tài khoản trong hệ thống! Vui lòng chuyển sang Đăng Nhập.');
-          setLoading(false);
-          return;
-        }
-
-        // Chèn tài khoản mới trực tiếp vào bảng profiles trong Neon Postgres DB
-        const userId = `user_${Date.now()}`;
-        await sql`
-          INSERT INTO profiles (id, full_name, email, password_hash)
-          VALUES (${userId}, ${displayName}, ${cleanEmail}, ${cleanPassword})
-        `;
-
-        // Tự động phân học viên mới vào lớp mặc định: "Khoá Học Guitar Đệm Hát 8 Bài"
-        const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-        const autoEnrollId = `enroll_${cleanEmailKey}_guitar_8_buoi`;
-        try {
-          await sql`
-            INSERT INTO user_courses (id, student_email, course_id)
-            VALUES (${autoEnrollId}, ${cleanEmail}, 'guitar-8-buoi')
-            ON CONFLICT (student_email, course_id) DO NOTHING
-          `;
-        } catch (enrollErr) {
-          console.warn('Auto enrollment error on signup:', enrollErr);
-        }
-
-        // Tự động Đăng nhập sau khi Đăng ký thành công
         localStorage.setItem('skip_auth', 'true');
         localStorage.setItem('temp_user_name', displayName);
         localStorage.setItem('temp_user_email', cleanEmail);
-        localStorage.setItem('temp_user_id', userId);
+        localStorage.setItem('temp_user_id', user.id);
         window.location.reload();
         return;
       }
     } catch (err: any) {
-      console.error('Auth DB error:', err);
-      setError('Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại!');
+      console.error('Auth error:', err);
+      setError(err?.message || 'Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại!');
     } finally {
       setLoading(false);
     }

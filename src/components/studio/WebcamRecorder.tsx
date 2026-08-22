@@ -4,7 +4,6 @@ import {
   Mic, Headphones, Sliders, Music, Sparkles, Maximize2, Minimize2, X, 
   Volume2, Zap, SwitchCamera, Tv, FlipHorizontal 
 } from 'lucide-react';
-import { sql } from '../../lib/neon';
 
 import { useCamera, getQualitySettings, type VideoQuality } from '../../hooks/useCamera';
 import { useAudioMonitor } from '../../hooks/useAudioMonitor';
@@ -370,12 +369,17 @@ export const WebcamRecorder: React.FC<Props> = ({
       }
 
       try {
-        await sql`
-          INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status)
-          VALUES (${submissionId}, ${studentId}, ${currentUserName}, ${currentUserEmail}, ${sessionId}, ${finalVideoUrl}, 'PENDING')
-        `;
+        const { api } = await import('../../lib/api');
+        await api.submissions.submit({
+          id: submissionId,
+          studentId,
+          studentName: currentUserName,
+          studentEmail: currentUserEmail,
+          sessionId,
+          videoUrl: finalVideoUrl
+        });
       } catch (neonErr) {
-        console.warn('Neon DB insert:', neonErr);
+        console.warn('Submission submit error:', neonErr);
       }
 
       setStatus('SUCCESS');

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { sql } from './lib/neon';
 import { 
   Users, 
   Video, 
@@ -45,26 +44,24 @@ export default function AdminPage() {
 
   const handleGradeSubmission = async (id: string, grade: number, feedback: string) => {
     try {
-      await sql`
-        UPDATE submissions 
-        SET status = 'REVIEWED', grade = ${grade}, feedback = ${feedback}
-        WHERE id = ${id}
-      `;
+      const { api } = await import('./lib/api');
+      await api.admin.grade(id, grade, feedback);
       refetch();
       showToast('Đã gửi đánh giá & điểm cho học viên!');
     } catch (e) {
-      console.warn('Neon DB update:', e);
+      console.warn('Grade submission error:', e);
     }
   };
 
   const handleDeleteSubmissionAdmin = async (subId: string) => {
     if (!window.confirm('Xác nhận xóa bài nộp video này khỏi CSDL?')) return;
     try {
-      await sql`DELETE FROM submissions WHERE id = ${subId}`;
+      const { api } = await import('./lib/api');
+      await api.admin.deleteSubmission(subId);
       refetch();
       showToast('Đã xóa bài nộp thành công!');
     } catch (e) {
-      console.warn('Neon DB delete submission admin note:', e);
+      console.warn('Delete submission error:', e);
       refetch();
       showToast('Đã xóa bài nộp!');
     }
@@ -77,27 +74,13 @@ export default function AdminPage() {
     }
     const cleanCourseId = newCourseId.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
     try {
-      try {
-        await sql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_order_index_key;`;
-      } catch (e) {}
-
-      await sql`
-        INSERT INTO courses (id, title, subtitle, description, total_sessions)
-        VALUES (${cleanCourseId}, ${newCourseTitle}, ${newCourseSubtitle || 'Khóa học guitar tùy chỉnh'}, ${newCourseSubtitle}, ${newCourseSessions})
-        ON CONFLICT (id) DO UPDATE SET 
-          title = EXCLUDED.title, 
-          subtitle = EXCLUDED.subtitle, 
-          total_sessions = EXCLUDED.total_sessions
-      `;
-
-      for (let i = 1; i <= newCourseSessions; i++) {
-        const sessId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000) + i;
-        await sql`
-          INSERT INTO sessions (id, course_id, title, subtitle, icon, order_index)
-          VALUES (${sessId}, ${cleanCourseId}, ${`Bài ${i}: Bài thực hành ${i}`}, ${`Nội dung hướng dẫn cho bài học thứ ${i}`}, '🎸', ${i})
-          ON CONFLICT (id) DO NOTHING
-        `;
-      }
+      const { api } = await import('./lib/api');
+      await api.admin.createCourse({
+        id: cleanCourseId,
+        title: newCourseTitle,
+        subtitle: newCourseSubtitle || 'Khóa học guitar tùy chỉnh',
+        sessionsCount: newCourseSessions
+      });
 
       refetch();
       showToast(`Đã tạo khóa học mới "${newCourseTitle}" với ${newCourseSessions} bài!`);
@@ -109,8 +92,6 @@ export default function AdminPage() {
 
   const handleToggleEnrollment = async (studentEmail: string, courseId: string, isEnrolled: boolean) => {
     const cleanEmail = studentEmail.trim().toLowerCase();
-    const cleanEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-    const enrollId = `enroll_${cleanEmailKey}_${courseId}`;
     const targetCourse = coursesList.find(c => c.id === courseId);
     const courseTitle = targetCourse?.title || courseId;
 
@@ -122,32 +103,14 @@ export default function AdminPage() {
         );
         if (!confirmRemove) return;
 
-        await sql`DELETE FROM user_courses WHERE LOWER(student_email) = ${cleanEmail} AND course_id = ${courseId}`;
-        await sql`
-          DELETE FROM student_progress 
-          WHERE (LOWER(student_id) = ${cleanEmail} OR student_id IN (SELECT id FROM profiles WHERE LOWER(email) = ${cleanEmail}))
-            AND session_id IN (
-              SELECT id FROM sessions 
-              WHERE course_id = ${courseId} OR (course_id IS NULL AND ${courseId} = 'guitar-8-buoi')
-            )
-        `;
-        await sql`
-          DELETE FROM submissions 
-          WHERE (LOWER(student_email) = ${cleanEmail} OR LOWER(student_id) = ${cleanEmail} OR student_id IN (SELECT id FROM profiles WHERE LOWER(email) = ${cleanEmail}))
-            AND session_id IN (
-              SELECT id FROM sessions 
-              WHERE course_id = ${courseId} OR (course_id IS NULL AND ${courseId} = 'guitar-8-buoi')
-            )
-        `;
+        const { api } = await import('./lib/api');
+        await api.admin.toggleEnrollment(cleanEmail, courseId, false);
 
         refetch();
         showToast(`Đã gỡ học viên khỏi khóa "${courseTitle}" và xóa sạch dữ liệu liên quan!`);
       } else {
-        await sql`
-          INSERT INTO user_courses (id, student_email, course_id)
-          VALUES (${enrollId}, ${cleanEmail}, ${courseId})
-          ON CONFLICT (student_email, course_id) DO NOTHING
-        `;
+        const { api } = await import('./lib/api');
+        await api.admin.toggleEnrollment(cleanEmail, courseId, true);
         refetch();
         showToast(`Đã phân học viên vào khóa "${courseTitle}" (khởi tạo mới 0%)!`);
       }
@@ -165,9 +128,8 @@ export default function AdminPage() {
     if (!window.confirm(`Xác nhận xóa toàn bộ khóa học "${courseTitle}"?`)) return;
 
     try {
-      await sql`DELETE FROM courses WHERE id = ${courseId}`;
-      await sql`DELETE FROM sessions WHERE course_id = ${courseId}`;
-      await sql`DELETE FROM user_courses WHERE course_id = ${courseId}`;
+      const { api } = await import('./lib/api');
+      await api.admin.deleteCourse(courseId);
 
       refetch();
       showToast(`Đã xóa khóa học ${courseTitle}`);
@@ -180,52 +142,37 @@ export default function AdminPage() {
   const handleSaveEditor = async (editorSessions: Session[], editorCourseId: string) => {
     saveSessionsData(editorSessions);
     try {
-      for (let idx = 0; idx < editorSessions.length; idx++) {
-        const sess = editorSessions[idx];
+      const formattedSessions = editorSessions.map((sess, idx) => {
         const chordsArr = sess.content.chords?.symbols || [];
-        const exercisesArr = JSON.stringify(sess.content.exercises || []);
+        const exercisesArr = sess.content.exercises || [];
         const ytbId = sess.content.practice[0]?.youtubeId || (sess.content as any).youtubeVideoId || 'dQw4w9WgXcQ';
         const theoryText = typeof sess.content.theory === 'string' 
           ? sess.content.theory 
           : (sess.content.theory?.[0]?.body || '');
-        const practiceJson = JSON.stringify(sess.content.practice || []);
         const targetBpm = sess.content.bpm || sess.target_bpm || 80;
         const timeSig = sess.content.timeSignature || sess.time_signature || 4;
 
-        await sql`
-          INSERT INTO sessions (id, course_id, title, subtitle, icon, youtube_video_id, theory_content, practice, chords, exercises, target_bpm, time_signature, order_index)
-          VALUES (
-            ${sess.id}, 
-            ${editorCourseId}, 
-            ${sess.title}, 
-            ${sess.subtitle}, 
-            ${sess.icon || '🎸'}, 
-            ${ytbId}, 
-            ${theoryText}, 
-            ${practiceJson}::jsonb, 
-            ${chordsArr}, 
-            ${exercisesArr}::jsonb,
-            ${targetBpm},
-            ${timeSig},
-            ${idx + 1}
-          )
-          ON CONFLICT (id) DO UPDATE SET 
-            course_id = EXCLUDED.course_id,
-            title = EXCLUDED.title,
-            subtitle = EXCLUDED.subtitle,
-            youtube_video_id = EXCLUDED.youtube_video_id,
-            theory_content = EXCLUDED.theory_content,
-            practice = EXCLUDED.practice,
-            chords = EXCLUDED.chords,
-            exercises = EXCLUDED.exercises,
-            target_bpm = EXCLUDED.target_bpm,
-            time_signature = EXCLUDED.time_signature,
-            order_index = EXCLUDED.order_index
-        `;
-      }
-      showToast(`Đã lưu toàn bộ nội dung bài học, metronome, video & bài tập cho khóa ${editorCourseId} lên CSDL Neon!`);
+        return {
+          id: sess.id,
+          course_id: editorCourseId,
+          title: sess.title,
+          subtitle: sess.subtitle,
+          icon: sess.icon || '🎸',
+          youtube_video_id: ytbId,
+          theory_content: theoryText,
+          chords: chordsArr,
+          exercises: exercisesArr,
+          target_bpm: targetBpm,
+          time_signature: timeSig,
+          order_index: idx + 1
+        };
+      });
+
+      const { api } = await import('./lib/api');
+      await api.admin.saveSessions(formattedSessions, editorCourseId);
+
+      showToast('Đã lưu bài học lên Neon CSDL thành công!');
     } catch (e: any) {
-      console.warn('Neon DB session update error:', e);
       alert('Lỗi lưu bài học: ' + e.message);
     }
   };
