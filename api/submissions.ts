@@ -1,27 +1,27 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from './lib/db';
+import { sql, safeQuery } from './_lib/db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-User-Email');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action, email, studentId } = req.query;
-
   try {
+    const { action, email, studentId } = req.query;
+
     // 1. GET /api/submissions?action=my&email=...
     if (req.method === 'GET' && action === 'my') {
       const targetEmail = String(email || '').trim().toLowerCase();
       const targetId = String(studentId || '').trim();
 
-      const dbSubmissions = await sql`
+      const dbSubmissions = await safeQuery(() => sql`
         SELECT * FROM submissions 
         WHERE LOWER(student_email) = ${targetEmail} OR student_id = ${targetId}
         ORDER BY created_at DESC
-      `;
+      `, []);
 
       return res.status(200).json({
         submissions: dbSubmissions || []
@@ -40,10 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const cleanEmail = String(studentEmail).trim().toLowerCase();
       const displayName = String(studentName || '').trim() || cleanEmail.split('@')[0];
 
-      await sql`
+      await safeQuery(() => sql`
         INSERT INTO submissions (id, student_id, student_name, student_email, session_id, video_url, status)
         VALUES (${submissionId}, ${studentId || cleanEmail}, ${displayName}, ${cleanEmail}, ${sessionId}, ${videoUrl}, 'PENDING')
-      `;
+      `, null);
 
       return res.status(200).json({ success: true, id: submissionId });
     }
@@ -55,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Thiếu ID bài nộp cần xóa!' });
       }
 
-      await sql`DELETE FROM submissions WHERE id = ${id}`;
+      await safeQuery(() => sql`DELETE FROM submissions WHERE id = ${id}`, null);
       return res.status(200).json({ success: true });
     }
 

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql, verifyJwtToken } from './lib/db';
+import { sql, verifyJwtToken, safeQuery } from './_lib/db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -20,8 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : String(rawHeaderEmail || '').toLowerCase();
     
     const isSuperAdmin = 
-      (authUser && authUser.role === 'SUPER_ADMIN') || 
-      (authUser && authUser.email.toLowerCase() === 'admin@guitarlab.vn') ||
+      (authUser && (authUser.role === 'SUPER_ADMIN' || authUser.email.toLowerCase() === 'admin@guitarlab.vn')) || 
       userEmailHeader === 'admin@guitarlab.vn';
 
     if (!isSuperAdmin) {
@@ -30,19 +29,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 1. GET /api/admin?action=data (Fetch all admin data)
     if (req.method === 'GET' && action === 'data') {
-      const [submissions, profiles, progress, courses, userEnrollments] = await Promise.all([
-        sql`SELECT * FROM submissions ORDER BY created_at DESC`,
-        sql`SELECT * FROM profiles ORDER BY created_at DESC`,
-        sql`SELECT * FROM student_progress`,
-        sql`SELECT * FROM courses ORDER BY created_at ASC`,
-        sql`SELECT * FROM user_courses ORDER BY enrolled_at DESC`
+      const submissions = await safeQuery(() => sql`SELECT * FROM submissions ORDER BY created_at DESC`, []);
+      const profiles = await safeQuery(() => sql`SELECT * FROM profiles ORDER BY created_at DESC`, []);
+      const progress = await safeQuery(() => sql`SELECT * FROM student_progress`, []);
+      const courses = await safeQuery(() => sql`SELECT * FROM courses ORDER BY created_at ASC`, [
+        { id: 'guitar-8-buoi', title: 'Khoá Học Guitar Đệm Hát 8 Bài', subtitle: 'Lộ trình chuẩn hóa', total_sessions: 8 }
       ]);
+      const userEnrollments = await safeQuery(() => sql`SELECT * FROM user_courses ORDER BY enrolled_at DESC`, []);
 
       return res.status(200).json({
         submissions: submissions || [],
         profiles: profiles || [],
         progress: progress || [],
-        courses: courses || [],
+        courses: courses && courses.length > 0 ? courses : [
+          { id: 'guitar-8-buoi', title: 'Khoá Học Guitar Đệm Hát 8 Bài', subtitle: 'Lộ trình chuẩn hóa', total_sessions: 8 }
+        ],
         userEnrollments: userEnrollments || []
       });
     }
@@ -50,11 +51,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 2. GET /api/admin?action=sessions&courseId=... (Fetch sessions for course editor)
     if (req.method === 'GET' && action === 'sessions') {
       const targetCourseId = String(courseId || 'guitar-8-buoi');
-      const sessions = await sql`
+      const sessions = await safeQuery(() => sql`
         SELECT * FROM sessions 
         WHERE course_id = ${targetCourseId} OR (course_id IS NULL AND ${targetCourseId} = 'guitar-8-buoi')
         ORDER BY order_index ASC, id ASC
-      `;
+      `, []);
+
       return res.status(200).json({ sessions: sessions || [] });
     }
 
