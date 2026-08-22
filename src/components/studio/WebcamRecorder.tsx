@@ -16,7 +16,10 @@ import {
   Minimize2,
   X,
   Volume2,
-  Zap
+  Zap,
+  SwitchCamera,
+  Tv,
+  FlipHorizontal
 } from 'lucide-react';
 import { sql } from '../../lib/neon';
 import { audioEngine } from '../../services/audioEngine';
@@ -30,6 +33,7 @@ interface Props {
 }
 
 type MetronomeSize = 'SM' | 'MD' | 'LG' | 'XL';
+type VideoQuality = '1080p' | '720p' | '480p';
 
 export const WebcamRecorder: React.FC<Props> = ({ 
   sessionId, 
@@ -63,6 +67,13 @@ export const WebcamRecorder: React.FC<Props> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [status, setStatus] = useState<'IDLE' | 'RECORDING' | 'REVIEW' | 'SUCCESS'>('IDLE');
   const [inputMode, setInputMode] = useState<'WEBCAM' | 'UPLOAD'>('WEBCAM');
+
+  // Video Quality (Full HD 1080p / 720p / 480p) & Camera Switcher
+  const [quality, setQuality] = useState<VideoQuality>('1080p');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>('');
+  const [mirrorVideo, setMirrorVideo] = useState<boolean>(true);
 
   // Zoom / Fullscreen Expanded Mode
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
@@ -107,6 +118,18 @@ export const WebcamRecorder: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExpanded]);
 
+  // Resolution dimensions & bitrate map
+  const getQualitySettings = (q: VideoQuality) => {
+    switch (q) {
+      case '1080p':
+        return { width: 1920, height: 1080, bitrate: 6000000, label: 'Full HD 1080p' };
+      case '720p':
+        return { width: 1280, height: 720, bitrate: 3500000, label: 'HD 720p' };
+      case '480p':
+        return { width: 854, height: 480, bitrate: 1500000, label: 'SD 480p' };
+    }
+  };
+
   // Tap tempo calculator
   const handleTap = () => {
     const now = Date.now();
@@ -122,17 +145,24 @@ export const WebcamRecorder: React.FC<Props> = ({
     }
   };
 
-  // Enumerate audio input devices
-  const loadAudioDevices = async () => {
+  // Enumerate all media devices (Mics & Cameras)
+  const loadMediaDevices = async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
+      
       const mics = devices.filter(d => d.kind === 'audioinput');
       setAudioDevices(mics);
       if (mics.length > 0 && !selectedAudioDevice) {
         setSelectedAudioDevice(mics[0].deviceId);
       }
+
+      const cams = devices.filter(d => d.kind === 'videoinput');
+      setVideoDevices(cams);
+      if (cams.length > 0 && !selectedVideoDevice) {
+        setSelectedVideoDevice(cams[0].deviceId);
+      }
     } catch (e) {
-      console.warn('Error loading audio devices:', e);
+      console.warn('Error loading media devices:', e);
     }
   };
 
@@ -223,35 +253,100 @@ export const WebcamRecorder: React.FC<Props> = ({
     }
   }, [isMonitoring]);
 
-  // Start Camera with selected mic
-  const startCamera = async () => {
+  // Start Camera with configurable resolution, front/back facing mode, and mic
+  const startCamera = async (
+    targetQuality: VideoQuality = quality,
+    targetFacingMode: 'user' | 'environment' = facingMode,
+    targetVideoDeviceId: string = selectedVideoDevice,
+    targetAudioDeviceId: string = selectedAudioDevice
+  ) => {
     setCameraError(null);
     try {
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
       }
 
-      const audioConstraints: boolean | MediaTrackConstraints = selectedAudioDevice
-        ? { deviceId: { exact: selectedAudioDevice }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      const qSettings = getQualitySettings(targetQuality);
+
+      const videoConstraints: MediaTrackConstraints = targetVideoDeviceId
+        ? { 
+            deviceId: { exact: targetVideoDeviceId },
+            width: { ideal: qSettings.width },
+            height: { ideal: qSettings.height }
+          }
+        : {
+            facingMode: targetFacingMode,
+            width: { ideal: qSettings.width },
+            height: { ideal: qSettings.height }
+          };
+
+      const audioConstraints: boolean | MediaTrackConstraints = targetAudioDeviceId
+        ? { deviceId: { exact: targetAudioDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
         : true;
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, 
+        video: videoConstraints, 
         audio: audioConstraints 
       });
 
       setStream(mediaStream);
+      setMirrorVideo(targetFacingMode === 'user');
       await setupAudioGraph(mediaStream);
-      await loadAudioDevices();
+      await loadMediaDevices();
       setStatus('IDLE');
     } catch (err: any) {
       console.error('Lỗi truy cập camera/mic:', err);
+      // If 1080p fails on some mobile devices, fallback to standard resolution
+      if (targetQuality === '1080p') {
+        try {
+          console.warn('Falling back to 720p...');
+          setQuality('720p');
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: targetFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: true
+          });
+          setStream(fallbackStream);
+          setMirrorVideo(targetFacingMode === 'user');
+          await setupAudioGraph(fallbackStream);
+          await loadMediaDevices();
+          setStatus('IDLE');
+          return;
+        } catch (fbErr: any) {
+          console.error('Fallback error:', fbErr);
+        }
+      }
       setCameraError(err.message || 'Không thể truy cập Camera/Microphone. Vui lòng cấp quyền.');
     }
   };
 
+  // Switch Front / Back Camera (Chuyển Camera Trước / Sau)
+  const toggleFacingMode = async () => {
+    const nextFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextFacingMode);
+    setSelectedVideoDevice(''); // Clear specific device to let facingMode decide
+    if (stream) {
+      await startCamera(quality, nextFacingMode, '', selectedAudioDevice);
+    }
+  };
+
+  // Change Specific Camera Device
+  const handleCameraDeviceChange = async (deviceId: string) => {
+    setSelectedVideoDevice(deviceId);
+    if (stream) {
+      await startCamera(quality, facingMode, deviceId, selectedAudioDevice);
+    }
+  };
+
+  // Change Video Quality / Resolution
+  const handleQualityChange = async (newQuality: VideoQuality) => {
+    setQuality(newQuality);
+    if (stream) {
+      await startCamera(newQuality, facingMode, selectedVideoDevice, selectedAudioDevice);
+    }
+  };
+
   // Change Audio Device
-  const handleDeviceChange = async (deviceId: string) => {
+  const handleAudioDeviceChange = async (deviceId: string) => {
     setSelectedAudioDevice(deviceId);
     if (stream) {
       try {
@@ -329,14 +424,21 @@ export const WebcamRecorder: React.FC<Props> = ({
     setIsExpanded(false);
   };
 
-  // Safe MimeType check for cross-browser support
+  // Safe MimeType check for cross-browser support with high quality codecs
   const getSupportedMimeType = () => {
     if (typeof MediaRecorder === 'undefined') return '';
-    const types = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+    const types = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=h264,opus',
+      'video/mp4;codecs=avc1,mp4a.40.2',
+      'video/webm',
+      'video/mp4'
+    ];
     return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
   };
 
-  // Draw overlay on canvas with size scaling
+  // Draw overlay on canvas with resolution and mirror adaptation
   const drawMetronomeOverlay = useCallback(() => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -348,15 +450,19 @@ export const WebcamRecorder: React.FC<Props> = ({
     const width = canvas.width;
     const height = canvas.height;
 
-    // 1. Draw mirrored webcam frame
+    // 1. Draw webcam frame (mirrored if front camera / user facing)
     ctx.save();
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, width, height);
 
     if (video.videoWidth > 0 && video.videoHeight > 0) {
       ctx.save();
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, -width, 0, width, height);
+      if (mirrorVideo) {
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -width, 0, width, height);
+      } else {
+        ctx.drawImage(video, 0, 0, width, height);
+      }
       ctx.restore();
     }
     ctx.restore();
@@ -365,58 +471,60 @@ export const WebcamRecorder: React.FC<Props> = ({
     if (embedMetronome) {
       const beat = currentBeatRef.current;
 
-      // Scaling dimensions based on metronomeSize
-      const scaleMultiplier = metronomeSize === 'SM' ? 0.8 : metronomeSize === 'MD' ? 1.0 : metronomeSize === 'LG' ? 1.4 : 1.8;
+      // Base scaling with resolution scale factor
+      const resScale = width >= 1920 ? 1.5 : width >= 1280 ? 1.0 : 0.75;
+      const sizeScale = metronomeSize === 'SM' ? 0.8 : metronomeSize === 'MD' ? 1.0 : metronomeSize === 'LG' ? 1.4 : 1.8;
+      const totalScale = resScale * sizeScale;
       
-      const badgeWidth = Math.round(240 * scaleMultiplier);
-      const badgeHeight = Math.round(68 * scaleMultiplier);
-      const badgeX = width - badgeWidth - 24;
-      const badgeY = 24;
+      const badgeWidth = Math.round(240 * totalScale);
+      const badgeHeight = Math.round(68 * totalScale);
+      const badgeX = width - badgeWidth - Math.round(24 * resScale);
+      const badgeY = Math.round(24 * resScale);
 
       ctx.save();
       ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.lineWidth = Math.max(1.5, Math.round(2 * scaleMultiplier));
+      ctx.lineWidth = Math.max(1.5, Math.round(2 * totalScale));
       
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, Math.round(14 * scaleMultiplier));
+      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, Math.round(14 * totalScale));
       ctx.fill();
       ctx.stroke();
 
       // Top text: Metronome info
-      const fontSize = Math.round(12 * scaleMultiplier);
+      const fontSize = Math.round(12 * totalScale);
       ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = '#f8fafc';
-      ctx.fillText(`⏱️ METRONOME: ${metronomeBpm} BPM (${metronomeTimeSig}/4)`, badgeX + Math.round(14 * scaleMultiplier), badgeY + Math.round(22 * scaleMultiplier));
+      ctx.fillText(`⏱️ METRONOME: ${metronomeBpm} BPM (${metronomeTimeSig}/4)`, badgeX + Math.round(14 * totalScale), badgeY + Math.round(22 * totalScale));
 
-      const pillGap = Math.round(6 * scaleMultiplier);
-      const pillWidth = Math.round(28 * scaleMultiplier);
-      const pillHeight = Math.round(24 * scaleMultiplier);
+      const pillGap = Math.round(6 * totalScale);
+      const pillWidth = Math.round(28 * totalScale);
+      const pillHeight = Math.round(24 * totalScale);
       const totalPillsWidth = metronomeTimeSig * pillWidth + (metronomeTimeSig - 1) * pillGap;
       const startPillX = badgeX + (badgeWidth - totalPillsWidth) / 2;
-      const pillY = badgeY + Math.round(32 * scaleMultiplier);
+      const pillY = badgeY + Math.round(32 * totalScale);
 
       for (let i = 1; i <= metronomeTimeSig; i++) {
         const pX = startPillX + (i - 1) * (pillWidth + pillGap);
         const isActive = beat === i;
 
         ctx.beginPath();
-        ctx.roundRect(pX, pillY, pillWidth, pillHeight, Math.round(6 * scaleMultiplier));
+        ctx.roundRect(pX, pillY, pillWidth, pillHeight, Math.round(6 * totalScale));
 
         if (isActive) {
           ctx.fillStyle = i === 1 ? '#f59e0b' : '#10b981';
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = Math.max(2, Math.round(2.5 * resScale));
           ctx.stroke();
 
           ctx.fillStyle = '#0f172a';
-          ctx.font = `900 ${Math.round(13 * scaleMultiplier)}px system-ui, sans-serif`;
+          ctx.font = `900 ${Math.round(13 * totalScale)}px system-ui, sans-serif`;
         } else {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
           ctx.fill();
           ctx.fillStyle = '#cbd5e1';
-          ctx.font = `bold ${Math.round(11 * scaleMultiplier)}px system-ui, sans-serif`;
+          ctx.font = `bold ${Math.round(11 * totalScale)}px system-ui, sans-serif`;
         }
 
         ctx.textAlign = 'center';
@@ -431,22 +539,23 @@ export const WebcamRecorder: React.FC<Props> = ({
 
     // 3. Draw Live REC indicator
     ctx.save();
-    const recX = 24;
-    const recY = 44;
+    const resScale = width >= 1920 ? 1.5 : width >= 1280 ? 1.0 : 0.75;
+    const recX = Math.round(24 * resScale);
+    const recY = Math.round(44 * resScale);
     ctx.fillStyle = 'rgba(225, 29, 72, 0.9)';
     ctx.beginPath();
-    ctx.arc(recX + 8, recY - 4, 7, 0, Math.PI * 2);
+    ctx.arc(recX + Math.round(8 * resScale), recY - Math.round(4 * resScale), Math.round(7 * resScale), 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.font = 'bold 15px monospace';
+    ctx.font = `bold ${Math.round(15 * resScale)}px monospace`;
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 4;
     const m = Math.floor(timer / 60).toString().padStart(2, '0');
     const s = (timer % 60).toString().padStart(2, '0');
-    ctx.fillText(`REC ${m}:${s}`, recX + 22, recY);
+    ctx.fillText(`REC ${m}:${s}`, recX + Math.round(22 * resScale), recY);
     ctx.restore();
-  }, [embedMetronome, metronomeBpm, metronomeTimeSig, metronomeSize, timer]);
+  }, [embedMetronome, metronomeBpm, metronomeTimeSig, metronomeSize, mirrorVideo, timer]);
 
   // Metronome sound & beat interval during recording
   useEffect(() => {
@@ -477,7 +586,7 @@ export const WebcamRecorder: React.FC<Props> = ({
     };
   }, [recording, embedMetronome, playMetronomeAudio, metronomeBpm, metronomeTimeSig, metronomeVolume]);
 
-  // Start Recording
+  // Start Recording with Selected Full HD / HD Resolution & High Bitrate
   const startRecording = async () => {
     if (!stream) return;
     try {
@@ -485,15 +594,19 @@ export const WebcamRecorder: React.FC<Props> = ({
         await audioCtxRef.current.resume();
       }
 
+      const qSettings = getQualitySettings(quality);
       const mimeType = getSupportedMimeType();
-      const options = mimeType ? { mimeType } : undefined;
+      const options: MediaRecorderOptions = {
+        ...(mimeType ? { mimeType } : {}),
+        videoBitsPerSecond: qSettings.bitrate
+      };
 
       let recordStream: MediaStream;
 
       if (embedMetronome && canvasRef.current) {
         const canvas = canvasRef.current;
-        canvas.width = 1280;
-        canvas.height = 720;
+        canvas.width = qSettings.width;
+        canvas.height = qSettings.height;
 
         drawMetronomeOverlay();
 
@@ -534,7 +647,7 @@ export const WebcamRecorder: React.FC<Props> = ({
         }
         const blobType = mimeType || 'video/webm';
         const blob = new Blob(chunks, { type: blobType });
-        console.log('✅ Video recorded successfully, size:', blob.size, 'bytes');
+        console.log(`✅ Video recorded (${quality} Full HD):`, blob.size, 'bytes, type:', blob.type);
         setVideoBlob(blob);
         const url = URL.createObjectURL(blob);
         setVideoUrl(url);
@@ -661,21 +774,23 @@ export const WebcamRecorder: React.FC<Props> = ({
     }
   };
 
+  const currentQualityInfo = getQualitySettings(quality);
+
   // Render IDLE or RECORDING view
   if (status === 'IDLE' || status === 'RECORDING') {
     return (
       <>
-        {/* Offscreen Canvas for Compositing Video + Metronome Overlay */}
+        {/* Offscreen Canvas for Compositing Video + Metronome Overlay (1080p / 720p Full Resolution) */}
         <canvas 
           ref={canvasRef} 
-          width={1280} 
-          height={720} 
+          width={currentQualityInfo.width} 
+          height={currentQualityInfo.height} 
           style={{ 
             position: 'fixed', 
             top: '-9999px', 
             left: '-9999px', 
-            width: '1280px', 
-            height: '720px', 
+            width: `${currentQualityInfo.width}px`, 
+            height: `${currentQualityInfo.height}px`, 
             opacity: 0, 
             pointerEvents: 'none', 
             zIndex: -100 
@@ -720,9 +835,9 @@ export const WebcamRecorder: React.FC<Props> = ({
                 <Camera className="w-7 h-7" />
               </div>
               
-              <h3 className="text-sm sm:text-base font-extrabold text-white mb-1">Ghi Hình & Kiểm Tra Âm Thanh</h3>
-              <p className="text-xs text-slate-400 max-w-xs mb-5">
-                Kiểm tra Mic thu, chỉnh âm lượng đàn và nhúng nhịp Metronome vào video
+              <h3 className="text-sm sm:text-base font-extrabold text-white mb-1">Ghi Hình Full HD & Kiểm Tra Âm Thanh</h3>
+              <p className="text-xs text-slate-400 max-w-sm mb-5">
+                Hỗ trợ Full HD 1080p sắc nét, đổi Camera trước/sau trên điện thoại và nhúng nhịp Metronome
               </p>
 
               {cameraError && (
@@ -732,9 +847,30 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               )}
 
+              {/* Quick Quality Pill Selector before starting */}
+              <div className="flex items-center gap-2 mb-4 bg-slate-800/80 p-1.5 rounded-xl border border-white/10">
+                <span className="text-[11px] font-bold text-slate-400 px-2 flex items-center gap-1">
+                  <Tv className="w-3.5 h-3.5 text-amber-400" /> Chất lượng:
+                </span>
+                {(['1080p', '720p', '480p'] as VideoQuality[]).map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setQuality(q)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                      quality === q
+                        ? 'bg-amber-400 text-slate-950 shadow-sm'
+                        : 'text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {q === '1080p' ? 'Full HD 1080p' : q === '720p' ? 'HD 720p' : 'SD 480p'}
+                  </button>
+                ))}
+              </div>
+
               <button 
-                onClick={startCamera} 
-                className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 px-6 py-3 rounded-xl font-black text-xs tracking-wider uppercase flex items-center gap-2 transition-all shadow-lg shadow-amber-900/30 active:scale-95"
+                onClick={() => startCamera(quality, facingMode, selectedVideoDevice, selectedAudioDevice)} 
+                className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 px-6 py-3.5 rounded-xl font-black text-xs tracking-wider uppercase flex items-center gap-2 transition-all shadow-lg shadow-amber-900/30 active:scale-95"
               >
                 <Video className="w-4 h-4" /> Bật Camera Ngay
               </button>
@@ -784,7 +920,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                 <div className="flex items-center justify-between pb-2 text-white">
                   <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
                     <Camera className="w-5 h-5" />
-                    <span>Chế Độ Toàn Màn Hình (Phóng To Luyện Đàn)</span>
+                    <span>Chế Độ Toàn Màn Hình ({currentQualityInfo.label})</span>
                   </div>
                   <button
                     onClick={() => setIsExpanded(false)}
@@ -795,7 +931,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Video Player Box with Scalable Metronome HUD */}
+              {/* Video Player Box with Scalable Metronome HUD & Front/Back Mirroring */}
               <div className={`relative bg-black rounded-2xl sm:rounded-3xl overflow-hidden aspect-video flex items-center justify-center border border-white/10 shadow-2xl ${
                 isExpanded ? 'w-full max-h-[65vh]' : 'w-full'
               }`}>
@@ -804,10 +940,10 @@ export const WebcamRecorder: React.FC<Props> = ({
                   autoPlay 
                   playsInline 
                   muted 
-                  className="w-full h-full object-cover transform -scale-x-100" 
+                  className={`w-full h-full object-cover ${mirrorVideo ? 'transform -scale-x-100' : ''}`}
                 />
 
-                {/* Top Left: Recording Status Badge */}
+                {/* Top Left: Recording Status Badge & Quality Tag */}
                 <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
                   {recording ? (
                     <div className="flex items-center gap-1.5 bg-rose-600 text-white px-2.5 py-1 rounded-full shadow-lg border border-rose-400/40 animate-pulse text-[11px] font-mono font-black">
@@ -817,9 +953,19 @@ export const WebcamRecorder: React.FC<Props> = ({
                   ) : (
                     <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md text-slate-300 px-2.5 py-1 rounded-full border border-white/15 text-[10px] font-bold">
                       <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span>Sẵn Sàng</span>
+                      <span>Sẵn Sàng ({quality})</span>
                     </div>
                   )}
+
+                  {/* Quick Switch Front/Back Camera Button */}
+                  <button
+                    onClick={toggleFacingMode}
+                    className="p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-md text-amber-400 hover:text-amber-300 rounded-xl border border-white/15 transition-all shadow-md flex items-center gap-1 text-[10px] font-bold"
+                    title="Đổi Camera Trước / Sau (Selfie / Môi trường)"
+                  >
+                    <SwitchCamera className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{facingMode === 'user' ? 'Cam Trước' : 'Cam Sau'}</span>
+                  </button>
                 </div>
 
                 {/* Top Right: Scalable Metronome HUD & Zoom Toggle Button */}
@@ -903,10 +1049,10 @@ export const WebcamRecorder: React.FC<Props> = ({
                       ? 'bg-amber-400 text-slate-950 font-black shadow-sm' 
                       : 'bg-white/10 text-slate-300 hover:bg-white/20'
                   }`}
-                  title="Cài đặt Micro & Metronome"
+                  title="Cài đặt Micro, Full HD & Metronome"
                 >
                   <Sliders className="w-3.5 h-3.5" />
-                  <span>{showSettings ? 'Đóng Cài Đặt' : 'Chỉnh Mic & Metronome'}</span>
+                  <span>{showSettings ? 'Đóng Cài Đặt' : 'Chỉnh Full HD & Nhịp'}</span>
                 </button>
 
                 {/* Center: Prominent Record / Stop Button */}
@@ -915,7 +1061,7 @@ export const WebcamRecorder: React.FC<Props> = ({
                     <button 
                       onClick={startRecording} 
                       className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-rose-900/50 hover:scale-105 active:scale-95 transition-all"
-                      title="Bắt đầu quay video"
+                      title="Bắt đầu quay video Full HD"
                     >
                       <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
                       <span>Bắt Đầu Quay</span>
@@ -986,13 +1132,13 @@ export const WebcamRecorder: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* ══ EXPANDABLE SETTINGS: SIZE, VOLUME, CUSTOM BPM ══ */}
+              {/* ══ EXPANDABLE SETTINGS: QUALITY, CAM SWITCHER, MIC, METRONOME ══ */}
               {showSettings && (
                 <div className="p-4 sm:p-5 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-4 shadow-xl text-white">
                   
                   <div className="flex items-center justify-between pb-2 border-b border-white/10">
                     <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sliders className="w-3.5 h-3.5" /> Thiết Lập Chi Tiết Âm Thanh & Metronome
+                      <Sliders className="w-3.5 h-3.5" /> Thiết Lập Chi Tiết Video, Camera & Metronome
                     </h4>
                     <button 
                       onClick={() => setShowSettings(false)}
@@ -1004,47 +1150,155 @@ export const WebcamRecorder: React.FC<Props> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
-                    {/* Left Column: Mic Config + Metronome Volume */}
+                    {/* Left Column: Video Quality, Camera Lens & Mic Config */}
                     <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-white/5">
+                      
+                      {/* Quality Selector (Full HD 1080p / HD 720p / SD 480p) */}
                       <div>
-                        <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                          Cổng Thu Âm (Microphone):
+                        <label className="text-[11px] font-bold text-amber-300 block mb-1.5 flex items-center gap-1">
+                          <Tv className="w-3.5 h-3.5 text-amber-400" /> Chất Lượng Độ Phân Giải Video:
                         </label>
-                        <select
-                          value={selectedAudioDevice}
-                          onChange={(e) => handleDeviceChange(e.target.value)}
-                          className="w-full bg-slate-900 border border-white/20 rounded-xl p-2 text-xs text-slate-200 outline-none focus:border-amber-400 truncate"
-                        >
-                          {audioDevices.length > 0 ? (
-                            audioDevices.map(d => (
-                              <option key={d.deviceId} value={d.deviceId}>
-                                {d.label || `Microphone (${d.deviceId.slice(0, 8)}...)`}
-                              </option>
-                            ))
-                          ) : (
-                            <option value="">Microphone Mặc Định Trình Duyệt</option>
-                          )}
-                        </select>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { q: '1080p' as VideoQuality, l: 'Full HD 1080p', d: 'Sắc nét nhất' },
+                            { q: '720p' as VideoQuality, l: 'HD 720p', d: 'Chuẩn mượt' },
+                            { q: '480p' as VideoQuality, l: 'SD 480p', d: 'Tiết kiệm' }
+                          ].map((item) => (
+                            <button
+                              key={item.q}
+                              type="button"
+                              onClick={() => handleQualityChange(item.q)}
+                              className={`py-2 px-1.5 rounded-xl border text-center transition-all ${
+                                quality === item.q
+                                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black'
+                                  : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/15'
+                              }`}
+                            >
+                              <div className="text-[11px] font-bold">{item.l}</div>
+                              <div className="text-[9px] opacity-80">{item.d}</div>
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
-                      {/* Mic Gain Slider */}
-                      <div>
-                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
-                          <span>Độ Nhạy Mic (Mic Gain):</span>
-                          <span className="text-amber-400 font-mono font-bold">{micVolume}%</span>
+                      {/* Camera Lens Selector & Flip */}
+                      <div className="pt-2 border-t border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                            <SwitchCamera className="w-3.5 h-3.5 text-emerald-400" /> Ống Kính Camera:
+                          </label>
+                          
+                          <button
+                            type="button"
+                            onClick={toggleFacingMode}
+                            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-lg border border-white/10"
+                          >
+                            <SwitchCamera className="w-3 h-3" />
+                            <span>{facingMode === 'user' ? 'Đổi sang Cam Sau' : 'Đổi sang Cam Trước'}</span>
+                          </button>
                         </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={200}
-                          value={micVolume}
-                          onChange={(e) => setMicVolume(Number(e.target.value))}
-                          className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                        />
+
+                        {/* Camera Device Dropdown */}
+                        <select
+                          value={selectedVideoDevice}
+                          onChange={(e) => handleCameraDeviceChange(e.target.value)}
+                          className="w-full bg-slate-900 border border-white/20 rounded-xl p-2 text-xs text-slate-200 outline-none focus:border-amber-400 truncate"
+                        >
+                          <option value="">{facingMode === 'user' ? 'Camera Trước (Selfie / Mặc định)' : 'Camera Sau (Môi trường / Mặc định)'}</option>
+                          {videoDevices.map(d => (
+                            <option key={d.deviceId} value={d.deviceId}>
+                              {d.label || `Camera (${d.deviceId.slice(0, 8)}...)`}
+                            </option>
+                          ))}
+                        </select>
+
+                        {/* Mirror Video Toggle */}
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-300 pt-1">
+                          <input
+                            type="checkbox"
+                            checked={mirrorVideo}
+                            onChange={(e) => setMirrorVideo(e.target.checked)}
+                            className="w-4 h-4 rounded text-amber-500 focus:ring-0"
+                          />
+                          <span className="flex items-center gap-1 text-[11px]">
+                            <FlipHorizontal className="w-3.5 h-3.5 text-slate-400" /> Lật hình gương (Mirror)
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Microphone Selection & Gain */}
+                      <div className="pt-2 border-t border-white/10 space-y-2">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                            Cổng Thu Âm (Microphone):
+                          </label>
+                          <select
+                            value={selectedAudioDevice}
+                            onChange={(e) => handleAudioDeviceChange(e.target.value)}
+                            className="w-full bg-slate-900 border border-white/20 rounded-xl p-2 text-xs text-slate-200 outline-none focus:border-amber-400 truncate"
+                          >
+                            {audioDevices.length > 0 ? (
+                              audioDevices.map(d => (
+                                <option key={d.deviceId} value={d.deviceId}>
+                                  {d.label || `Microphone (${d.deviceId.slice(0, 8)}...)`}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">Microphone Mặc Định Trình Duyệt</option>
+                            )}
+                          </select>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
+                            <span>Độ Nhạy Mic (Mic Gain):</span>
+                            <span className="text-amber-400 font-mono font-bold">{micVolume}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={200}
+                            value={micVolume}
+                            onChange={(e) => setMicVolume(Number(e.target.value))}
+                            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                          />
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Right Column: Metronome Size, Sound Volume & Custom BPM Controls */}
+                    <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-white/5">
+                      
+                      {/* Metronome HUD Size Selector */}
+                      <div>
+                        <label className="text-[11px] font-bold text-amber-300 block mb-1.5">
+                          Kích Thước Bảng Metronome Trên Video:
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {(['SM', 'MD', 'LG', 'XL'] as MetronomeSize[]).map((sz) => {
+                            const label = sz === 'SM' ? 'Nhỏ (1x)' : sz === 'MD' ? 'Vừa (1.3x)' : sz === 'LG' ? 'Lớn (1.6x)' : 'Cực Đại (2x)';
+                            const isSel = metronomeSize === sz;
+                            return (
+                              <button
+                                key={sz}
+                                type="button"
+                                onClick={() => setMetronomeSize(sz)}
+                                className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold transition-all border text-center ${
+                                  isSel
+                                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black scale-105'
+                                    : 'bg-white/10 text-slate-300 border-white/10 hover:bg-white/20'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       {/* Metronome Sound Volume (Tăng / Giảm Âm Lượng Tiếng Click) */}
-                      <div className="pt-2 border-t border-white/10">
+                      <div className="pt-1">
                         <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1">
                           <span className="flex items-center gap-1 text-amber-300">
                             <Volume2 className="w-3.5 h-3.5" /> Âm Lượng Tiếng Gõ Metronome:
@@ -1081,40 +1335,9 @@ export const WebcamRecorder: React.FC<Props> = ({
                           ))}
                         </div>
                       </div>
-                    </div>
-
-                    {/* Right Column: Metronome Size & Custom Tempo Controls */}
-                    <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-white/5">
-                      
-                      {/* Metronome HUD Size Selector (Tăng / Giảm Kích Thước Hình Metronome) */}
-                      <div>
-                        <label className="text-[11px] font-bold text-amber-300 block mb-1.5">
-                          Kích Thước Bảng Metronome Trên Video:
-                        </label>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {(['SM', 'MD', 'LG', 'XL'] as MetronomeSize[]).map((sz) => {
-                            const label = sz === 'SM' ? 'Nhỏ (1x)' : sz === 'MD' ? 'Vừa (1.3x)' : sz === 'LG' ? 'Lớn (1.6x)' : 'Cực Đại (2x)';
-                            const isSel = metronomeSize === sz;
-                            return (
-                              <button
-                                key={sz}
-                                type="button"
-                                onClick={() => setMetronomeSize(sz)}
-                                className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold transition-all border text-center ${
-                                  isSel
-                                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black scale-105'
-                                    : 'bg-white/10 text-slate-300 border-white/10 hover:bg-white/20'
-                                }`}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
 
                       {/* Checkboxes */}
-                      <div className="space-y-1.5 pt-1">
+                      <div className="space-y-1.5 pt-1 border-t border-white/10">
                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
                           <input
                             type="checkbox"
@@ -1291,7 +1514,7 @@ export const WebcamRecorder: React.FC<Props> = ({
       <div className="w-full bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200">
         <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
           <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-600" /> Xem Lại Video Đoạn Đàn
+            <Check className="w-4 h-4 text-emerald-600" /> Xem Lại Video Đoạn Đàn ({currentQualityInfo.label})
           </h3>
           <span className="font-mono text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200">
             Thời lượng: {formatTime(timer)}
@@ -1318,7 +1541,7 @@ export const WebcamRecorder: React.FC<Props> = ({
             onClick={() => {
               setVideoBlob(null);
               setVideoUrl(null);
-              startCamera();
+              startCamera(quality, facingMode, selectedVideoDevice, selectedAudioDevice);
             }} 
             disabled={uploading}
             className="flex-1 py-3 px-4 bg-white text-slate-700 border border-slate-300 rounded-2xl font-bold text-xs hover:bg-slate-100 transition-all flex justify-center items-center gap-2 disabled:opacity-50 shadow-xs"
